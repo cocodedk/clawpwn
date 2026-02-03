@@ -4,6 +4,17 @@ import subprocess
 from pathlib import Path
 
 from clawpwn.cli import app, get_project_dir, require_project
+from clawpwn.modules.network import HostInfo
+
+
+def _make_fake_project(tmpdir: Path) -> Path:
+    project_path = tmpdir / "scan_project"
+    project_path.mkdir()
+    (project_path / ".clawpwn").mkdir()
+    (project_path / "evidence").mkdir()
+    (project_path / "exploits").mkdir()
+    (project_path / "report").mkdir()
+    return project_path
 
 
 class TestCLIInit:
@@ -108,6 +119,126 @@ class TestCLICommandsExist:
         # Just verify the app object has commands
         # In Typer, commands are stored in .registered_commands or .commands
         assert hasattr(app, "registered_commands") or hasattr(app, "commands") or True
+
+
+def test_scan_skips_web_for_raw_ip(monkeypatch, temp_dir: Path, capsys):
+    from clawpwn import cli as cli_module
+    from clawpwn.modules import network as network_module
+
+    project_path = _make_fake_project(temp_dir)
+
+    # Force project resolution
+    monkeypatch.setattr(cli_module, "require_project", lambda: project_path)
+
+    class FakeState:
+        target = "91.100.72.107"
+
+    class FakeSession:
+        def get_state(self):
+            return FakeState()
+
+        def update_phase(self, phase: str):
+            return None
+
+    monkeypatch.setattr(cli_module, "SessionManager", lambda _: FakeSession())
+
+    async def fake_scan_host(*args, **kwargs):
+        return HostInfo(ip="91.100.72.107", open_ports=[80], services=[])
+
+    monkeypatch.setattr(network_module.NetworkDiscovery, "scan_host", fake_scan_host)
+    monkeypatch.setattr(network_module.NetworkDiscovery, "print_summary", lambda *_: None)
+
+    # Prevent web scanning from running
+    class FakeScanner:
+        async def scan(self, *args, **kwargs):
+            raise AssertionError("web scan should not run for raw IP")
+
+    monkeypatch.setattr(cli_module, "Scanner", lambda *_: FakeScanner())
+
+    # Run
+    cli_module.scan(verbose=False)
+
+    out = capsys.readouterr().out
+    assert "No URL scheme detected" in out
+
+
+def test_scan_verbose_flag_enables_nmap_verbose(monkeypatch, temp_dir: Path):
+    from clawpwn import cli as cli_module
+    from clawpwn.modules import network as network_module
+
+    project_path = _make_fake_project(temp_dir)
+    monkeypatch.setattr(cli_module, "require_project", lambda: project_path)
+
+    class FakeState:
+        target = "91.100.72.107"
+
+    class FakeSession:
+        def get_state(self):
+            return FakeState()
+
+        def update_phase(self, phase: str):
+            return None
+
+    monkeypatch.setattr(cli_module, "SessionManager", lambda _: FakeSession())
+
+    called = {"verbose": None}
+
+    async def fake_scan_host(*args, **kwargs):
+        called["verbose"] = kwargs.get("verbose")
+        return HostInfo(ip="91.100.72.107", open_ports=[22], services=[])
+
+    monkeypatch.setattr(network_module.NetworkDiscovery, "scan_host", fake_scan_host)
+    monkeypatch.setattr(network_module.NetworkDiscovery, "print_summary", lambda *_: None)
+
+    class FakeScanner:
+        async def scan(self, *args, **kwargs):
+            return []
+
+    monkeypatch.setattr(cli_module, "Scanner", lambda *_: FakeScanner())
+
+    cli_module.scan(verbose=True)
+
+    assert called["verbose"] is True
+
+
+def test_scan_env_verbose(monkeypatch, temp_dir: Path):
+    from clawpwn import cli as cli_module
+    from clawpwn.modules import network as network_module
+
+    project_path = _make_fake_project(temp_dir)
+    monkeypatch.setattr(cli_module, "require_project", lambda: project_path)
+    monkeypatch.setenv("CLAWPWN_VERBOSE", "true")
+
+    class FakeState:
+        target = "91.100.72.107"
+
+    class FakeSession:
+        def get_state(self):
+            return FakeState()
+
+        def update_phase(self, phase: str):
+            return None
+
+    monkeypatch.setattr(cli_module, "SessionManager", lambda _: FakeSession())
+
+    called = {"verbose": None}
+
+    async def fake_scan_host(*args, **kwargs):
+        called["verbose"] = kwargs.get("verbose")
+        return HostInfo(ip="91.100.72.107", open_ports=[22], services=[])
+
+    monkeypatch.setattr(network_module.NetworkDiscovery, "scan_host", fake_scan_host)
+    monkeypatch.setattr(network_module.NetworkDiscovery, "print_summary", lambda *_: None)
+
+    class FakeScanner:
+        async def scan(self, *args, **kwargs):
+            return []
+
+    monkeypatch.setattr(cli_module, "Scanner", lambda *_: FakeScanner())
+
+    cli_module.scan()
+
+    assert called["verbose"] is True
 
 
 class TestTyperAppStructure:

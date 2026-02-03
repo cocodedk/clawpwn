@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: uv run --frozen pytest -q -p no:cacheprovider
+        entry: uv run --frozen pytest -q -p no:cacheprovider --maxfail=1
         language: system
         pass_filenames: false
         stages: [pre-commit]

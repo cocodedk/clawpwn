@@ -19,3 +19,7 @@ wheels/
 .coverage
 coverage.xml
 htmlcov/
+
+# Project data
+.clawpwn/
+pentests/

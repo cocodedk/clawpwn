@@ -63,7 +63,11 @@ class NetworkDiscovery:
         return hosts
 
     async def scan_host(
-        self, target: str, scan_type: str = "quick", full_scan: bool = False
+        self,
+        target: str,
+        scan_type: str = "quick",
+        full_scan: bool = False,
+        verbose: bool = False,
     ) -> HostInfo:
         """
         Scan a single host for open ports and services.
@@ -76,11 +80,13 @@ class NetworkDiscovery:
         print(f"[*] Scanning {target}...")
 
         if full_scan or scan_type == "full":
-            results = await self.scanner.full_scan(target)
+            results = await self.scanner.full_scan(target, verbose=verbose)
         elif scan_type == "quick":
-            results = await self.scanner.quick_scan(target)
+            results = await self.scanner.quick_scan(target, verbose=verbose)
         else:
-            results = await self.scanner.scan_host(target, version_detection=True)
+            results = await self.scanner.scan_host(
+                target, version_detection=True, verbose=verbose
+            )
 
         if not results:
             return HostInfo(ip=target, notes="No response from host")

@@ -12,6 +12,17 @@ export PATH="$HOME/.local/bin:$PATH"
 # Install ClawPwn as a global tool
 uv tool install . --force
 
+# Ensure nmap is installed (required for port scanning)
+if ! command -v nmap >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    echo "Installing nmap (requires sudo)..."
+    sudo apt-get update
+    sudo apt-get install -y nmap
+  else
+    echo "Warning: nmap not found and apt-get unavailable. Install nmap manually."
+  fi
+fi
+
 # Ensure .env exists and has required keys
 ENV_FILE=".env"
 if [ ! -f "$ENV_FILE" ]; then
@@ -33,10 +44,40 @@ get_env_value() {
 set_env_value() {
   local key="$1"
   local value="$2"
-  if grep -qE "^${key}=" "$ENV_FILE"; then
-    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+  if command -v python3 >/dev/null 2>&1; then
+    printf "%s\n%s\n" "$key" "$value" | python3 - <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(".env")
+data = sys.stdin.read().splitlines()
+key = data[0] if data else ""
+value = data[1] if len(data) > 1 else ""
+
+lines = path.read_text().splitlines() if path.exists() else []
+found = False
+out = []
+for line in lines:
+    if re.match(rf"^{re.escape(key)}=", line):
+        out.append(f"{key}={value}")
+        found = True
+    else:
+        out.append(line)
+
+if not found:
+    out.append(f"{key}={value}")
+
+path.write_text("\\n".join(out) + "\\n")
+PY
   else
-    printf "%s=%s\n" "$key" "$value" >> "$ENV_FILE"
+    # Fallback (best-effort) without python3
+    if grep -qE "^${key}=" "$ENV_FILE"; then
+      awk -v k="$key" -v v="$value" 'BEGIN{FS=OFS="="} $1==k{$2=v} {print}' "$ENV_FILE" > "$ENV_FILE.tmp"
+      mv "$ENV_FILE.tmp" "$ENV_FILE"
+    else
+      printf "%s=%s\n" "$key" "$value" >> "$ENV_FILE"
+    fi
   fi
 }
 

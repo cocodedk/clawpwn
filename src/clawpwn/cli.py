@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -235,10 +236,17 @@ def scan(
     depth: str = typer.Option(
         "normal", "--depth", help="Scan depth: quick, normal, deep"
     ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose scan output"),
 ):
     """Start the scanning phase."""
+    if not isinstance(verbose, bool):
+        verbose = False
     project_dir = require_project()
     db_path = project_dir / ".clawpwn" / "clawpwn.db"
+
+    if not verbose:
+        env_verbose = os.environ.get("CLAWPWN_VERBOSE", "").lower()
+        verbose = env_verbose in {"1", "true", "yes", "on"}
 
     session = SessionManager(db_path)
     state = session.get_state()
@@ -259,6 +267,8 @@ def scan(
         scanner = Scanner(project_dir)
         network = NetworkDiscovery(project_dir)
 
+        scan_started = time.perf_counter()
+
         # Resolve host/IP for network scan
         host_target = target_url
         if "://" in target_url:
@@ -272,8 +282,15 @@ def scan(
         full_scan = depth == "deep"
 
         host_info = await network.scan_host(
-            host_target, scan_type=scan_type, full_scan=full_scan
+            host_target,
+            scan_type=scan_type,
+            full_scan=full_scan,
+            verbose=verbose,
         )
+
+        if verbose:
+            elapsed = time.perf_counter() - scan_started
+            console.print(f"[dim]Network discovery completed in {elapsed:.2f}s[/dim]")
 
         network.print_summary(
             {
@@ -307,7 +324,11 @@ def scan(
             )
 
             console.print(f"[*] Phase 2: Web Application Scanning ({depth} mode)")
+            web_started = time.perf_counter()
             findings = await scanner.scan(target_url, config)
+            if verbose:
+                elapsed = time.perf_counter() - web_started
+                console.print(f"[dim]Web scan completed in {elapsed:.2f}s[/dim]")
             return findings
 
         # AI-guided next steps for raw IP targets

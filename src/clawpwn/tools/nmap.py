@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -54,6 +55,7 @@ class NmapScanner:
         version_detection: bool = True,
         os_detection: bool = False,
         script_scan: bool = False,
+        verbose: bool = False,
     ) -> List[HostResult]:
         """
         Scan a target host.
@@ -90,6 +92,9 @@ class NmapScanner:
             cmd.append("-sC")
 
         # Run nmap
+        if verbose:
+            print(f"[verbose] Nmap command: {' '.join(cmd)}")
+        started = time.perf_counter()
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -98,18 +103,26 @@ class NmapScanner:
 
         stdout, stderr = await process.communicate()
 
+        if verbose:
+            elapsed = time.perf_counter() - started
+            print(f"[verbose] Nmap exit code: {process.returncode} ({elapsed:.2f}s)")
+
         if process.returncode != 0:
             error_msg = stderr.decode() if stderr else "Unknown error"
+            if verbose:
+                error_msg = f"{error_msg}\nCommand: {' '.join(cmd)}"
             raise RuntimeError(f"Nmap scan failed: {error_msg}")
 
         # Parse XML output
         return self._parse_nmap_xml(stdout.decode())
 
-    async def quick_scan(self, target: str) -> List[HostResult]:
+    async def quick_scan(self, target: str, verbose: bool = False) -> List[HostResult]:
         """Quick scan of top 1000 ports."""
-        return await self.scan_host(target, aggressive=True, version_detection=True)
+        return await self.scan_host(
+            target, aggressive=True, version_detection=True, verbose=verbose
+        )
 
-    async def full_scan(self, target: str) -> List[HostResult]:
+    async def full_scan(self, target: str, verbose: bool = False) -> List[HostResult]:
         """Full scan of all ports with version detection."""
         return await self.scan_host(
             target,
@@ -117,6 +130,7 @@ class NmapScanner:
             aggressive=True,
             version_detection=True,
             script_scan=True,
+            verbose=verbose,
         )
 
     async def ping_sweep(self, network: str) -> List[str]:
