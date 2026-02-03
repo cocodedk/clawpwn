@@ -101,8 +101,9 @@ def init():
             f"  exploits/       - Downloaded exploits\n"
             f"  report/         - Generated reports\n\n"
             f"[yellow]Next steps:[/yellow]\n"
-            f"  1. Set API key: export ANTHROPIC_API_KEY=your-key\n"
-            f"     Or edit: {env_path}\n"
+            f"  1. Configure LLM:\n"
+            f"     Edit: {env_path}\n"
+            f"     Set: CLAWPWN_LLM_PROVIDER and CLAWPWN_LLM_API_KEY\n"
             f"  2. Set target: clawpwn target https://example.com\n"
             f"  3. Run scan: clawpwn scan",
             title="ClawPwn",
@@ -228,7 +229,7 @@ def scan(
         raise typer.Exit(1)
 
     target_url = state.target
-
+    has_scheme = bool(target_url and "://" in target_url)
     console.print(f"[blue]Starting scan phase for {target_url}...[/blue]")
 
     # Run network discovery first
@@ -238,16 +239,21 @@ def scan(
         # Initialize scanner
         scanner = Scanner(project_dir)
 
-        # Run web vulnerability scan
-        config = ScanConfig(
-            target=target_url,
-            depth=depth,
+        if has_scheme:
+            # Run web vulnerability scan
+            config = ScanConfig(
+                target=target_url,
+                depth=depth,
+            )
+
+            console.print(f"[*] Phase 2: Web Application Scanning ({depth} mode)")
+            findings = await scanner.scan(target_url, config)
+            return findings
+
+        console.print(
+            "[yellow]No URL scheme detected. Skipping web scan and finishing after network discovery.[/yellow]"
         )
-
-        console.print(f"[*] Phase 2: Web Application Scanning ({depth} mode)")
-        findings = await scanner.scan(target_url, config)
-
-        return findings
+        return []
 
     try:
         findings = asyncio.run(run_scan())
@@ -288,6 +294,10 @@ def killchain(
         raise typer.Exit(1)
 
     target_url = target or state.target
+    if target_url and "://" not in target_url:
+        target_url = f"http://{target_url}"
+        session.set_target(target_url)
+        console.print(f"[dim]No scheme provided. Using {target_url}[/dim]")
 
     console.print(
         Panel(

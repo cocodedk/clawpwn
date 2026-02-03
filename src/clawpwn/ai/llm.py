@@ -9,6 +9,9 @@ import httpx
 from clawpwn.config import (
     get_api_key,
     get_config,
+    get_llm_provider,
+    get_llm_model,
+    get_llm_base_url,
     create_project_config_template,
     create_global_config,
 )
@@ -19,12 +22,12 @@ class LLMClient:
 
     def __init__(
         self,
-        provider: str = "anthropic",
+        provider: Optional[str] = None,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         project_dir: Optional[Path] = None,
     ):
-        self.provider = provider.lower()
+        self.provider = (provider or get_llm_provider(project_dir)).lower()
         self.project_dir = project_dir
 
         # Get API key from multiple sources
@@ -34,10 +37,13 @@ class LLMClient:
             self.api_key = self._get_api_key_with_fallback()
 
         # Default models
-        self.model = model or {
+        self.model = model or get_llm_model(project_dir) or {
             "anthropic": "claude-3-5-sonnet-20241022",
             "openai": "gpt-4o",
+            "openrouter": "openai/gpt-4o-mini",
         }.get(self.provider, "claude-3-5-sonnet-20241022")
+
+        self.base_url = get_llm_base_url(project_dir)
 
         self.client = httpx.Client(timeout=60.0)
 
@@ -50,6 +56,7 @@ class LLMClient:
             env_var = {
                 "anthropic": "ANTHROPIC_API_KEY",
                 "openai": "OPENAI_API_KEY",
+                "openrouter": "OPENROUTER_API_KEY",
             }.get(self.provider, f"{self.provider.upper()}_API_KEY")
 
             error_msg = f"""API key not found for provider: {self.provider}
@@ -57,17 +64,21 @@ class LLMClient:
 To set your API key, choose one of these methods:
 
 1. Environment variable (quick):
-   export {env_var}=your-api-key
+   export CLAWPWN_LLM_API_KEY=your-api-key
+   export CLAWPWN_LLM_PROVIDER={self.provider}
+   # or legacy: export {env_var}=your-api-key
 
 2. Project .env file (recommended per project):
-   echo "{env_var}=your-api-key" >> .clawpwn/.env
+   echo "CLAWPWN_LLM_PROVIDER={self.provider}" >> .clawpwn/.env
+   echo "CLAWPWN_LLM_API_KEY=your-api-key" >> .clawpwn/.env
 
 3. Global config file:
-   echo "{env_var}: your-api-key" >> ~/.clawpwn/config.yml
+   echo "CLAWPWN_LLM_API_KEY: your-api-key" >> ~/.clawpwn/config.yml
 
 Get your API key from:
 - Anthropic: https://console.anthropic.com/
 - OpenAI: https://platform.openai.com/
+- OpenRouter: https://openrouter.ai/
 """
             raise ValueError(error_msg)
 
@@ -77,14 +88,15 @@ Get your API key from:
         """Send a chat message and get a response."""
         if self.provider == "anthropic":
             return self._chat_anthropic(message, system_prompt)
-        elif self.provider == "openai":
+        elif self.provider in ("openai", "openrouter"):
             return self._chat_openai(message, system_prompt)
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
     def _chat_anthropic(self, message: str, system_prompt: Optional[str] = None) -> str:
         """Chat with Claude API."""
-        url = "https://api.anthropic.com/v1/messages"
+        base = self.base_url or "https://api.anthropic.com"
+        url = f"{base.rstrip('/')}/v1/messages"
 
         headers = {
             "x-api-key": self.api_key,
@@ -109,7 +121,12 @@ Get your API key from:
 
     def _chat_openai(self, message: str, system_prompt: Optional[str] = None) -> str:
         """Chat with OpenAI API."""
-        url = "https://api.openai.com/v1/chat/completions"
+        if self.provider == "openrouter":
+            base = self.base_url or "https://openrouter.ai/api/v1"
+        else:
+            base = self.base_url or "https://api.openai.com/v1"
+
+        url = f"{base.rstrip('/')}/chat/completions"
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",

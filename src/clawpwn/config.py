@@ -102,12 +102,34 @@ def get_api_key(
     Returns:
         API key or None if not found
     """
+    # New unified key (preferred)
+    unified = get_config("CLAWPWN_LLM_API_KEY", project_dir)
+    if unified:
+        return unified
+
+    # Backward-compatible provider-specific keys
     env_var = {
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
     }.get(provider, f"{provider.upper()}_API_KEY")
 
     return get_config(env_var, project_dir)
+
+
+def get_llm_provider(project_dir: Optional[Path] = None) -> str:
+    """Get LLM provider (default: anthropic)."""
+    return get_config("CLAWPWN_LLM_PROVIDER", project_dir, default="anthropic")
+
+
+def get_llm_model(project_dir: Optional[Path] = None) -> Optional[str]:
+    """Get LLM model name."""
+    return get_config("CLAWPWN_LLM_MODEL", project_dir)
+
+
+def get_llm_base_url(project_dir: Optional[Path] = None) -> Optional[str]:
+    """Get LLM base URL."""
+    return get_config("CLAWPWN_LLM_BASE_URL", project_dir)
 
 
 def create_project_config_template(project_dir: Path) -> Path:
@@ -115,21 +137,25 @@ def create_project_config_template(project_dir: Path) -> Path:
     env_path = project_dir / ".clawpwn" / ".env"
 
     if not env_path.exists():
-        template = """# ClawPwn AI Configuration
-# Uncomment and fill in your API keys
+        template = """# ClawPwn LLM Configuration
+# Uncomment and fill in your values
 
-# Anthropic (Claude) - Recommended
+# Provider: anthropic | openai | openrouter | local
+# CLAWPWN_LLM_PROVIDER=anthropic
+
+# API key for the selected provider
+# CLAWPWN_LLM_API_KEY=your-api-key-here
+
+# Base URL for self-hosted providers (optional)
+# CLAWPWN_LLM_BASE_URL=https://api.example.com/v1
+
+# Model name (provider-specific)
+# CLAWPWN_LLM_MODEL=claude-3-5-sonnet-20241022
+
+# Backward-compatible provider-specific keys (optional)
 # ANTHROPIC_API_KEY=your-api-key-here
-
-# OpenAI (GPT-4)
 # OPENAI_API_KEY=your-api-key-here
-
-# Custom provider (optional)
-# CUSTOM_API_KEY=your-api-key-here
-# CUSTOM_API_URL=https://api.example.com/v1
-
-# Default provider to use (anthropic or openai)
-# CLAWPWN_AI_PROVIDER=anthropic
+# OPENROUTER_API_KEY=your-api-key-here
 """
         env_path.write_text(template)
 
