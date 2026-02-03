@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -74,6 +75,10 @@ class NmapScanner:
             cmd.append("-T4")
         else:
             cmd.append("-T2")
+
+        # Use unprivileged scan settings when not running as root
+        if os.geteuid() != 0:
+            cmd.extend(["-sT", "-Pn", "--unprivileged"])
 
         if version_detection:
             cmd.append("-sV")
