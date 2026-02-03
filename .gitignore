@@ -11,3 +11,11 @@ wheels/
 
 # Environment files
 .env
+
+# Tool caches
+.cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/

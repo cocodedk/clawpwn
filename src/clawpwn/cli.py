@@ -502,7 +502,7 @@ def config(
             project_dir = require_project()
             env_path = create_project_config_template(project_dir)
             console.print(f"[green]Created project config:[/green] {env_path}")
-            console.print("[dim]Edit the file and uncomment the API keys you want to use.[/dim]
+            console.print("[dim]Edit the file and uncomment the API keys you want to use.[/dim]")
     
     elif action == "show":
         if global_config:

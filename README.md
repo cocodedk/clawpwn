@@ -48,7 +48,7 @@ uv build
 ## Pre-commit
 
 ```bash
-uv sync
+uv sync --extra dev
 uv run pre-commit install
 ```
 
