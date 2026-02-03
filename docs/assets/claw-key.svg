@@ -1,0 +1,53 @@
+<svg width="820" height="360" viewBox="0 0 820 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="clawGlow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7DFFAD" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#5BD1FF" stop-opacity="0.7" />
+    </linearGradient>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="1" y="1" width="818" height="358" rx="20" stroke="rgba(125,255,173,0.3)" />
+  <path d="M48 290 C140 210, 250 230, 310 210" stroke="rgba(125,255,173,0.3)" stroke-width="2" />
+  <path d="M90 70 C140 100, 200 120, 260 130" stroke="rgba(91,209,255,0.25)" stroke-width="2" />
+
+  <!-- Key body -->
+  <g filter="url(#softGlow)">
+    <circle cx="510" cy="170" r="60" stroke="url(#clawGlow)" stroke-width="6" fill="rgba(13,18,22,0.7)" />
+    <rect x="565" y="160" width="170" height="20" rx="10" fill="url(#clawGlow)" />
+    <rect x="705" y="150" width="22" height="40" rx="6" fill="url(#clawGlow)" />
+    <rect x="735" y="150" width="22" height="40" rx="6" fill="url(#clawGlow)" />
+    <circle cx="510" cy="170" r="22" stroke="url(#clawGlow)" stroke-width="4" fill="transparent" />
+  </g>
+
+  <!-- Claw lines -->
+  <g stroke="url(#clawGlow)" stroke-width="8" stroke-linecap="round" filter="url(#softGlow)">
+    <path d="M250 120 C300 130, 330 150, 360 190" />
+    <path d="M240 180 C300 190, 340 210, 380 240" />
+    <path d="M260 240 C320 245, 360 250, 420 260" />
+  </g>
+
+  <!-- Talons -->
+  <g fill="url(#clawGlow)">
+    <path d="M360 190 L400 170 L392 210 Z" />
+    <path d="M380 240 L420 220 L414 258 Z" />
+    <path d="M420 260 L460 248 L452 284 Z" />
+  </g>
+
+  <!-- Subtle grid lines -->
+  <g stroke="rgba(125,255,173,0.08)">
+    <line x1="120" y1="40" x2="120" y2="320" />
+    <line x1="220" y1="40" x2="220" y2="320" />
+    <line x1="320" y1="40" x2="320" y2="320" />
+    <line x1="420" y1="40" x2="420" y2="320" />
+    <line x1="520" y1="40" x2="520" y2="320" />
+    <line x1="620" y1="40" x2="620" y2="320" />
+    <line x1="720" y1="40" x2="720" y2="320" />
+  </g>
+</svg>

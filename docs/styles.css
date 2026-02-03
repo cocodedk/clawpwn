@@ -78,6 +78,15 @@ main {
   color: var(--muted);
 }
 
+.hero-art {
+  margin-top: 28px;
+  width: min(100%, 820px);
+  border-radius: 18px;
+  border: 1px solid rgba(125, 255, 173, 0.2);
+  background: rgba(5, 10, 12, 0.4);
+  box-shadow: 0 0 30px rgba(125, 255, 173, 0.15);
+}
+
 .cta-row {
   margin-top: 28px;
   display: flex;
