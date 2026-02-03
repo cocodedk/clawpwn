@@ -75,10 +75,29 @@ def init():
         return
 
     # Create directory structure
-    clawpwn_dir.mkdir(exist_ok=True)
-    (project_dir / "evidence").mkdir(exist_ok=True)
-    (project_dir / "exploits").mkdir(exist_ok=True)
-    (project_dir / "report").mkdir(exist_ok=True)
+    try:
+        clawpwn_dir.mkdir(exist_ok=True)
+        (project_dir / "evidence").mkdir(exist_ok=True)
+        (project_dir / "exploits").mkdir(exist_ok=True)
+        (project_dir / "report").mkdir(exist_ok=True)
+    except PermissionError:
+        console.print(
+            "[red]Error: Cannot write to this directory.[/red]\n"
+            "[dim]Choose a writable location (e.g., under your workspace or /tmp) and run 'clawpwn init' again.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    # Verify write access
+    try:
+        write_test = clawpwn_dir / ".write_test"
+        write_test.write_text("ok")
+        write_test.unlink()
+    except PermissionError:
+        console.print(
+            "[red]Error: Project directory is not writable.[/red]\n"
+            "[dim]Choose a writable location (e.g., under your workspace or /tmp) and run 'clawpwn init' again.[/dim]"
+        )
+        raise typer.Exit(1)
 
     # Initialize database
     db_path = clawpwn_dir / "clawpwn.db"
@@ -238,6 +257,47 @@ def scan(
     async def run_scan():
         # Initialize scanner
         scanner = Scanner(project_dir)
+        network = NetworkDiscovery(project_dir)
+
+        # Resolve host/IP for network scan
+        host_target = target_url
+        if "://" in target_url:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(target_url)
+            if parsed.hostname:
+                host_target = parsed.hostname
+
+        scan_type = "quick" if depth == "quick" else "normal"
+        full_scan = depth == "deep"
+
+        host_info = await network.scan_host(
+            host_target, scan_type=scan_type, full_scan=full_scan
+        )
+
+        network.print_summary(
+            {
+                "hosts": [host_info],
+                "services": [
+                    {
+                        "port": s.port,
+                        "name": s.name,
+                        "version": s.version,
+                        "product": s.product,
+                    }
+                    for s in host_info.services
+                ],
+                "web_services": [
+                    {
+                        "url": f"{'https' if s.port == 443 else 'http'}://{host_target}:{s.port}",
+                        "port": s.port,
+                        "service": s.name,
+                    }
+                    for s in host_info.services
+                    if s.name in ["http", "https", "http-proxy"]
+                ],
+            }
+        )
 
         if has_scheme:
             # Run web vulnerability scan
@@ -249,6 +309,34 @@ def scan(
             console.print(f"[*] Phase 2: Web Application Scanning ({depth} mode)")
             findings = await scanner.scan(target_url, config)
             return findings
+
+        # AI-guided next steps for raw IP targets
+        console.print("[*] Phase 2: AI Recommendations")
+        try:
+            from clawpwn.ai.llm import LLMClient
+
+            service_summary = ", ".join(
+                [
+                    f"{s.port}/{s.protocol} {s.name} {s.banner}".strip()
+                    for s in host_info.services
+                ]
+            ) or "No open services detected"
+
+            prompt = f"""Target: {host_target}
+Open ports: {host_info.open_ports or []}
+Services: {service_summary}
+
+Provide the next safe, authorized, low-risk enumeration steps. Do not exploit. Focus on validation, version checks, and service-specific recon. Return a short numbered list."""
+            response = LLMClient(project_dir=project_dir).chat(
+                prompt,
+                system_prompt="You are a penetration testing assistant. Provide only safe, authorized, non-destructive next steps.",
+            )
+            console.print("\\n[bold]AI Next Steps:[/bold]")
+            console.print(response.strip())
+        except Exception as e:
+            console.print(
+                f"[yellow]AI guidance unavailable: {e}. Configure CLAWPWN_LLM_PROVIDER and CLAWPWN_LLM_API_KEY to enable recommendations.[/yellow]"
+            )
 
         console.print(
             "[yellow]No URL scheme detected. Skipping web scan and finishing after network discovery.[/yellow]"
