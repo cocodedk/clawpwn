@@ -2,7 +2,7 @@
 
 AI-assisted penetration testing toolkit with a natural language interface and an operator-first workflow.
 
-GitHub Pages: https://cocodedk.github.io/pentest-tool/
+GitHub Pages: https://cocodedk.github.io/clawpwn/
 
 ## What It Is
 
