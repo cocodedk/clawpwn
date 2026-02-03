@@ -32,6 +32,14 @@ clawpwn target https://example.com
 clawpwn
 ```
 
+## Setup Script
+
+```bash
+./setup.sh
+```
+
+This installs `uv`, syncs dev dependencies, and installs pre-commit hooks.
+
 ## Development
 
 ```bash
@@ -53,6 +61,10 @@ uv run pre-commit install
 ```
 
 The pre-commit hook runs `uv run pytest` before each commit.
+
+## Environment
+
+Copy `.env.example` to `.env` and fill in the values you need.
 
 ## Commit Messages
 
