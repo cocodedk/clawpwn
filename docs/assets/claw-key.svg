@@ -26,36 +26,31 @@
     <line x1="720" y1="40" x2="720" y2="320" />
   </g>
 
-  <!-- Cube A (left, penetrated) -->
+  <!-- Cube A (left) -->
   <g stroke="url(#wireGlow)" stroke-width="3" filter="url(#softGlow)">
-    <!-- front face -->
-    <rect x="180" y="120" width="150" height="150" />
-    <!-- back face -->
-    <rect x="235" y="80" width="150" height="150" stroke-dasharray="6 6" stroke-opacity="0.5" />
-    <!-- connectors -->
-    <line x1="180" y1="120" x2="235" y2="80" />
-    <line x1="330" y1="120" x2="385" y2="80" />
-    <line x1="180" y1="270" x2="235" y2="230" />
-    <line x1="330" y1="270" x2="385" y2="230" />
+    <rect x="200" y="115" width="160" height="160" />
+    <rect x="255" y="75" width="160" height="160" stroke-dasharray="6 6" stroke-opacity="0.5" />
+    <line x1="200" y1="115" x2="255" y2="75" />
+    <line x1="360" y1="115" x2="415" y2="75" />
+    <line x1="200" y1="275" x2="255" y2="235" />
+    <line x1="360" y1="275" x2="415" y2="235" />
   </g>
 
-  <!-- Cube B (right, interpenetrating) -->
+  <!-- Cube B (right, shifted left to intersect) -->
   <g stroke="url(#wireGlow)" stroke-width="3" filter="url(#softGlow)" stroke-opacity="0.9">
-    <!-- front face -->
-    <rect x="360" y="170" width="150" height="150" />
-    <!-- back face -->
-    <rect x="415" y="130" width="150" height="150" stroke-dasharray="6 6" stroke-opacity="0.5" />
-    <!-- connectors -->
-    <line x1="360" y1="170" x2="415" y2="130" />
-    <line x1="510" y1="170" x2="565" y2="130" />
-    <line x1="360" y1="320" x2="415" y2="280" />
-    <line x1="510" y1="320" x2="565" y2="280" />
+    <rect x="310" y="165" width="160" height="160" />
+    <rect x="365" y="125" width="160" height="160" stroke-dasharray="6 6" stroke-opacity="0.5" />
+    <line x1="310" y1="165" x2="365" y2="125" />
+    <line x1="470" y1="165" x2="525" y2="125" />
+    <line x1="310" y1="325" x2="365" y2="285" />
+    <line x1="470" y1="325" x2="525" y2="285" />
   </g>
 
-  <!-- Overlap highlights to suggest interpenetration -->
+  <!-- Overlap highlights to show interpenetration -->
   <g stroke="rgba(91,209,255,0.55)" stroke-width="2">
-    <line x1="330" y1="200" x2="360" y2="200" />
-    <line x1="330" y1="230" x2="360" y2="230" />
-    <line x1="385" y1="200" x2="415" y2="200" />
+    <line x1="330" y1="185" x2="360" y2="185" />
+    <line x1="330" y1="215" x2="360" y2="215" />
+    <line x1="360" y1="245" x2="400" y2="245" />
+    <line x1="400" y1="215" x2="430" y2="215" />
   </g>
 </svg>
