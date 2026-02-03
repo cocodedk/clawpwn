@@ -27,6 +27,22 @@ app = typer.Typer(
 console = Console()
 
 
+@app.command()
+def version() -> None:
+    """Show the installed ClawPwn version."""
+    try:
+        from importlib.metadata import PackageNotFoundError, version as pkg_version
+    except ImportError:  # pragma: no cover
+        from importlib_metadata import PackageNotFoundError, version as pkg_version
+
+    try:
+        current_version = pkg_version("clawpwn")
+    except PackageNotFoundError:
+        current_version = "0.0.0+unknown"
+
+    console.print(f"ClawPwn {current_version}")
+
+
 def get_project_dir() -> Optional[Path]:
     """Find the project directory by looking for .clawpwn folder."""
     current = Path.cwd()
