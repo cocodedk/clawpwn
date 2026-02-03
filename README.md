@@ -54,6 +54,21 @@ uv run pre-commit install
 
 The pre-commit hook runs `uv run pytest` before each commit.
 
+## Commit Messages
+
+Use Conventional Commits so releases are automated correctly.
+
+- `feat:` new feature (minor bump)
+- `fix:` bug fix (patch bump)
+- `feat!:` or `fix!:` breaking change (major bump)
+- `chore:` or `docs:` for non-release changes
+
+Example:
+
+```text
+feat: add target validation
+```
+
 ## Safety
 
 ClawPwn is intended for authorized security testing only. Always obtain written permission and follow local laws.
