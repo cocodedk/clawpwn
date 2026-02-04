@@ -1,9 +1,8 @@
 """HTTP helpers for ClawPwn."""
 
-import asyncio
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Tuple
-from urllib.parse import urljoin, urlparse
+from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 
@@ -14,9 +13,9 @@ class HTTPResponse:
 
     url: str
     status_code: int
-    headers: Dict[str, str]
+    headers: dict[str, str]
     body: str
-    cookies: Dict[str, str]
+    cookies: dict[str, str]
     response_time: float
     content_type: str = ""
     server: str = ""
@@ -34,7 +33,7 @@ class HTTPClient:
         self.timeout = timeout
         self.follow_redirects = follow_redirects
         self.verify_ssl = verify_ssl
-        self.client: Optional[httpx.AsyncClient] = None
+        self.client: httpx.AsyncClient | None = None
 
     async def __aenter__(self):
         self.client = httpx.AsyncClient(
@@ -52,9 +51,9 @@ class HTTPClient:
         self,
         method: str,
         url: str,
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
+        headers: dict[str, str] | None = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
     ) -> HTTPResponse:
         """Make an HTTP request."""
         if not self.client:
@@ -88,7 +87,7 @@ class HTTPClient:
     async def get(
         self,
         url: str,
-        headers: Optional[Dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
     ) -> HTTPResponse:
         """Make a GET request."""
         return await self.request("GET", url, headers=headers)
@@ -96,13 +95,13 @@ class HTTPClient:
     async def post(
         self,
         url: str,
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
+        data: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> HTTPResponse:
         """Make a POST request."""
         return await self.request("POST", url, headers=headers, data=data)
 
-    async def check_robots_txt(self, base_url: str) -> Optional[str]:
+    async def check_robots_txt(self, base_url: str) -> str | None:
         """Check if robots.txt exists and return content."""
         url = urljoin(base_url, "/robots.txt")
         try:
@@ -113,7 +112,7 @@ class HTTPClient:
             pass
         return None
 
-    async def check_sitemap(self, base_url: str) -> Optional[str]:
+    async def check_sitemap(self, base_url: str) -> str | None:
         """Check if sitemap.xml exists and return content."""
         url = urljoin(base_url, "/sitemap.xml")
         try:
@@ -124,7 +123,7 @@ class HTTPClient:
             pass
         return None
 
-    async def discover_endpoints(self, base_url: str) -> List[str]:
+    async def discover_endpoints(self, base_url: str) -> list[str]:
         """
         Discover common endpoints.
 
@@ -167,9 +166,9 @@ class WebCrawler:
         self.max_depth = max_depth
         self.max_pages = max_pages
         self.visited: set = set()
-        self.found_urls: List[str] = []
+        self.found_urls: list[str] = []
 
-    async def crawl(self) -> List[str]:
+    async def crawl(self) -> list[str]:
         """Crawl the website and return found URLs."""
         async with HTTPClient() as client:
             await self._crawl_recursive(client, self.base_url, 0)
@@ -208,7 +207,7 @@ class WebCrawler:
             pass
 
 
-async def check_headers(url: str) -> Dict[str, Any]:
+async def check_headers(url: str) -> dict[str, Any]:
     """Check security headers of a URL."""
     security_headers = [
         "X-Frame-Options",

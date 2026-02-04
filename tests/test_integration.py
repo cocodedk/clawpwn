@@ -1,14 +1,13 @@
 """Integration tests for ClawPwn."""
 
-import pytest
-import respx
-from httpx import Response
 from pathlib import Path
 
-from clawpwn.modules.session import SessionManager
-from clawpwn.modules.scanner import Scanner, ScanConfig
-from clawpwn.modules.network import NetworkDiscovery
+import respx
+from httpx import Response
+
 from clawpwn.cli import get_project_dir, require_project
+from clawpwn.modules.scanner import ScanConfig, Scanner
+from clawpwn.modules.session import SessionManager
 
 
 class TestEndToEndWorkflow:
@@ -16,7 +15,6 @@ class TestEndToEndWorkflow:
 
     def test_full_project_lifecycle(self, temp_dir: Path):
         """Test a complete project from init through reporting."""
-        import os
 
         # 1. Create project directory
         project_path = temp_dir / "pentest_project"
@@ -202,6 +200,7 @@ class TestProjectDetection:
     def test_operations_outside_project(self, temp_dir: Path):
         """Test that operations outside a project fail gracefully."""
         import os
+
         import typer
 
         original_cwd = os.getcwd()
@@ -223,8 +222,8 @@ class TestReportGeneration:
 
     def test_report_generation_with_findings(self, project_dir: Path, mock_env_vars):
         """Test report generation when findings exist."""
-        from clawpwn.modules.report import ReportGenerator, ReportConfig
         from clawpwn.db.init import init_db
+        from clawpwn.modules.report import ReportConfig, ReportGenerator
 
         # Setup project with data
         db_path = project_dir / ".clawpwn" / "clawpwn.db"
@@ -258,9 +257,10 @@ class TestReportGeneration:
 
     def test_report_generation_json(self, project_dir: Path, mock_env_vars):
         """Test JSON report generation."""
-        from clawpwn.modules.report import ReportGenerator, ReportConfig
-        from clawpwn.db.init import init_db
         import json
+
+        from clawpwn.db.init import init_db
+        from clawpwn.modules.report import ReportConfig, ReportGenerator
 
         # Setup project with minimal data
         db_path = project_dir / ".clawpwn" / "clawpwn.db"

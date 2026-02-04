@@ -1,13 +1,11 @@
 """Nmap wrapper for network discovery."""
 
 import asyncio
-import json
 import os
 import subprocess
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 
 @dataclass
@@ -30,8 +28,8 @@ class HostResult:
     ip: str
     hostname: str = ""
     status: str = ""
-    ports: List[PortScanResult] = field(default_factory=list)
-    os_info: Dict[str, Any] = field(default_factory=dict)
+    ports: list[PortScanResult] = field(default_factory=list)
+    os_info: dict[str, Any] = field(default_factory=dict)
 
 
 class NmapScanner:
@@ -44,13 +42,13 @@ class NmapScanner:
         """Verify nmap is installed."""
         try:
             subprocess.run(["nmap", "--version"], capture_output=True, check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            raise RuntimeError("nmap is not installed. Please install nmap first.")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            raise RuntimeError("nmap is not installed. Please install nmap first.") from e
 
     async def scan_host(
         self,
         target: str,
-        ports: Optional[str] = None,
+        ports: str | None = None,
         aggressive: bool = False,
         version_detection: bool = True,
         os_detection: bool = False,
@@ -58,7 +56,7 @@ class NmapScanner:
         tcp_connect: bool = False,
         udp: bool = False,
         verbose: bool = False,
-    ) -> List[HostResult]:
+    ) -> list[HostResult]:
         """
         Scan a target host.
 
@@ -122,13 +120,13 @@ class NmapScanner:
         # Parse XML output
         return self._parse_nmap_xml(stdout.decode())
 
-    async def quick_scan(self, target: str, verbose: bool = False) -> List[HostResult]:
+    async def quick_scan(self, target: str, verbose: bool = False) -> list[HostResult]:
         """Quick scan of top 1000 ports."""
         return await self.scan_host(
             target, aggressive=True, version_detection=True, verbose=verbose
         )
 
-    async def full_scan(self, target: str, verbose: bool = False) -> List[HostResult]:
+    async def full_scan(self, target: str, verbose: bool = False) -> list[HostResult]:
         """Full scan of all ports with version detection."""
         return await self.scan_host(
             target,
@@ -145,7 +143,7 @@ class NmapScanner:
         ports: str,
         version_detection: bool = True,
         verbose: bool = False,
-    ) -> List[HostResult]:
+    ) -> list[HostResult]:
         """TCP connect scan for specific ports."""
         return await self.scan_host(
             target,
@@ -158,7 +156,7 @@ class NmapScanner:
 
     async def scan_host_udp(
         self, target: str, ports: str, verbose: bool = False
-    ) -> List[HostResult]:
+    ) -> list[HostResult]:
         """UDP scan for specific ports."""
         return await self.scan_host(
             target,
@@ -169,7 +167,7 @@ class NmapScanner:
             verbose=verbose,
         )
 
-    async def ping_sweep(self, network: str) -> List[str]:
+    async def ping_sweep(self, network: str) -> list[str]:
         """
         Perform a ping sweep to discover live hosts.
 
@@ -193,7 +191,7 @@ class NmapScanner:
         hosts = self._parse_nmap_xml(stdout.decode())
         return [h.ip for h in hosts if h.status == "up"]
 
-    def _parse_nmap_xml(self, xml_data: str) -> List[HostResult]:
+    def _parse_nmap_xml(self, xml_data: str) -> list[HostResult]:
         """Parse nmap XML output into HostResult objects."""
         try:
             import xml.etree.ElementTree as ET
@@ -215,9 +213,8 @@ class NmapScanner:
 
         return results
 
-    def _parse_host(self, host_elem) -> Optional[HostResult]:
+    def _parse_host(self, host_elem) -> HostResult | None:
         """Parse a single host element from nmap XML."""
-        import xml.etree.ElementTree as ET
 
         # Get IP address
         address = host_elem.find("address[@addrtype='ipv4']")
@@ -269,7 +266,7 @@ class NmapScanner:
             os_info=os_info,
         )
 
-    def _parse_port(self, port_elem) -> Optional[PortScanResult]:
+    def _parse_port(self, port_elem) -> PortScanResult | None:
         """Parse a single port element from nmap XML."""
         portid = port_elem.get("portid", "")
         protocol = port_elem.get("protocol", "")

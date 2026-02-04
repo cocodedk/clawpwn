@@ -4,7 +4,6 @@ import asyncio
 import re
 import shutil
 import time
-from typing import List
 
 from clawpwn.tools.masscan import HostResult, PortScanResult
 
@@ -19,9 +18,7 @@ class RustScanScanner:
         """Verify rustscan is installed."""
         path = shutil.which("rustscan")
         if not path:
-            raise RuntimeError(
-                "rustscan is not installed. Please install rustscan first."
-            )
+            raise RuntimeError("rustscan is not installed. Please install rustscan first.")
         return path
 
     async def scan_host(
@@ -31,7 +28,7 @@ class RustScanScanner:
         batch_size: int = 5000,
         timeout_ms: int = 1000,
         verbose: bool = False,
-    ) -> List[HostResult]:
+    ) -> list[HostResult]:
         """
         Scan a target host with rustscan.
 
@@ -86,7 +83,7 @@ class RustScanScanner:
         return results
 
     @staticmethod
-    def _parse_output(target: str, output: str) -> List[HostResult]:
+    def _parse_output(target: str, output: str) -> list[HostResult]:
         """Parse rustscan quiet output into HostResult objects.
 
         RustScan --quiet outputs discovered ports, typically one per line
@@ -96,7 +93,7 @@ class RustScanScanner:
             return [HostResult(ip=target, ports=[])]
 
         # Collect all port numbers: digits only, one per line or comma-separated
-        port_numbers: List[int] = []
+        port_numbers: list[int] = []
         for part in re.split(r"[\s,]+", output.strip()):
             part = part.strip()
             if not part:
@@ -110,7 +107,6 @@ class RustScanScanner:
                     port_numbers.append(p)
 
         port_results = [
-            PortScanResult(port=p, protocol="tcp", state="open")
-            for p in sorted(port_numbers)
+            PortScanResult(port=p, protocol="tcp", state="open") for p in sorted(port_numbers)
         ]
         return [HostResult(ip=target, ports=port_results)]

@@ -4,13 +4,14 @@ import asyncio
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
-from clawpwn.tools.masscan import MasscanScanner, HostResult, PortScanResult
+from clawpwn.config import get_project_db_path
+from clawpwn.modules.session import SessionManager
+from clawpwn.tools.masscan import HostResult, MasscanScanner, PortScanResult
 from clawpwn.tools.nmap import NmapScanner
 from clawpwn.tools.rustscan import RustScanScanner
-from clawpwn.modules.session import SessionManager
-from clawpwn.config import get_project_db_path
+from clawpwn.utils.privileges import can_raw_scan, get_privilege_help
 
 
 @dataclass
@@ -23,7 +24,7 @@ class ServiceInfo:
     version: str
     product: str
     banner: str = ""
-    vulnerabilities: List[str] = field(default_factory=list)
+    vulnerabilities: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -33,18 +34,18 @@ class HostInfo:
     ip: str
     hostname: str = ""
     os: str = ""
-    services: List[ServiceInfo] = field(default_factory=list)
-    open_ports: List[int] = field(default_factory=list)
+    services: list[ServiceInfo] = field(default_factory=list)
+    open_ports: list[int] = field(default_factory=list)
     notes: str = ""
 
 
-def _split_port_range(low: int, high: int, n: int) -> List[str]:
+def _split_port_range(low: int, high: int, n: int) -> list[str]:
     """Split a port range [low, high] into n roughly equal range strings."""
     if n <= 1 or high <= low:
         return [f"{low}-{high}"]
     total = high - low + 1
     chunk_size = max(1, total // n)
-    ranges: List[str] = []
+    ranges: list[str] = []
     a = low
     for _ in range(n - 1):
         b = min(a + chunk_size - 1, high)
@@ -55,7 +56,7 @@ def _split_port_range(low: int, high: int, n: int) -> List[str]:
     return ranges
 
 
-def _parse_port_spec(spec: str) -> Optional[tuple[int, int]]:
+def _parse_port_spec(spec: str) -> tuple[int, int] | None:
     """Parse 'a-b' into (a, b). Returns None for comma-separated or single ports."""
     spec = spec.strip()
     if "-" in spec and "," not in spec:
@@ -68,12 +69,12 @@ def _parse_port_spec(spec: str) -> Optional[tuple[int, int]]:
 class NetworkDiscovery:
     """Manages network discovery and host enumeration."""
 
-    def __init__(self, project_dir: Optional[Path] = None):
-        self._port_scanner: Optional[Union[MasscanScanner, NmapScanner, RustScanScanner]] = None
+    def __init__(self, project_dir: Path | None = None):
+        self._port_scanner: MasscanScanner | NmapScanner | RustScanScanner | None = None
         self._scanner_type: str = "rustscan"
-        self.nmap: Optional[NmapScanner] = None
+        self.nmap: NmapScanner | None = None
         self.project_dir = project_dir
-        self.session: Optional[SessionManager] = None
+        self.session: SessionManager | None = None
 
         if project_dir:
             db_path = get_project_db_path(project_dir)
@@ -104,8 +105,10 @@ class NetworkDiscovery:
         target: str,
         ports: str,
         verbose: bool,
-    ) -> List[HostResult]:
+    ) -> list[HostResult]:
         """Run port scan with scanner-specific arguments."""
+        if scanner_type in ("rustscan", "masscan") and not can_raw_scan(scanner_type):
+            raise RuntimeError(get_privilege_help(scanner_type))
         if scanner_type == "rustscan":
             batch_size = int(os.environ.get("CLAWPWN_RUSTSCAN_BATCH_SIZE", "5000"))
             timeout_ms = int(os.environ.get("CLAWPWN_RUSTSCAN_TIMEOUT_MS", "1000"))
@@ -119,18 +122,12 @@ class NetworkDiscovery:
         if scanner_type == "masscan":
             rate = self._rate_for_scan()
             interface = os.environ.get("CLAWPWN_MASSCAN_INTERFACE")
-            sudo_env = os.environ.get("CLAWPWN_MASSCAN_SUDO")
-            sudo = (
-                sudo_env.lower() in {"1", "true", "yes", "on"}
-                if sudo_env is not None
-                else os.geteuid() != 0
-            )
             return await scanner.scan_host(
                 target,
                 ports=ports,
                 rate=rate,
                 interface=interface,
-                sudo=sudo,
+                sudo=False,
                 verbose=verbose,
             )
         if scanner_type == "nmap":
@@ -141,7 +138,7 @@ class NetworkDiscovery:
             )
         raise ValueError(f"Unknown scanner type: {scanner_type}")
 
-    async def discover_hosts(self, network: str) -> List[str]:
+    async def discover_hosts(self, network: str) -> list[str]:
         """
         Discover live hosts on a network.
 
@@ -158,9 +155,11 @@ class NetworkDiscovery:
         print(f"[+] Found {len(hosts)} live hosts")
         return hosts
 
-    def _merge_host_results(self, results_list: List[List[HostResult]], target: str) -> List[HostResult]:
+    def _merge_host_results(
+        self, results_list: list[list[HostResult]], target: str
+    ) -> list[HostResult]:
         """Merge multiple scan results for the same target into one HostResult per IP."""
-        all_ports: Dict[int, PortScanResult] = {}
+        all_ports: dict[int, PortScanResult] = {}
         for results in results_list:
             for host in results:
                 for port in host.ports:
@@ -177,8 +176,8 @@ class NetworkDiscovery:
         verbose: bool = False,
         include_udp: bool = False,
         verify_tcp: bool = False,
-        ports_tcp: Optional[str] = None,
-        ports_udp: Optional[str] = None,
+        ports_tcp: str | None = None,
+        ports_udp: str | None = None,
         scanner_type: str = "rustscan",
         parallel_groups: int = 4,
     ) -> HostInfo:
@@ -199,7 +198,7 @@ class NetworkDiscovery:
         print(f"[*] Port scan ({scanner_type})")
 
         # Parallel port group scanning: only for single range (e.g. 1-65535)
-        port_ranges: List[str] = []
+        port_ranges: list[str] = []
         parsed = _parse_port_spec(ports)
         if parsed and parallel_groups > 1:
             low, high = parsed
@@ -215,9 +214,7 @@ class NetworkDiscovery:
             results_list = await asyncio.gather(*tasks)
             results = self._merge_host_results(results_list, target)
         else:
-            results = await self._run_port_scan(
-                scanner, scanner_type, target, ports, verbose
-            )
+            results = await self._run_port_scan(scanner, scanner_type, target, ports, verbose)
 
         # Convert to HostInfo
         host_info = HostInfo(
@@ -292,9 +289,7 @@ class NetworkDiscovery:
                 self.nmap = NmapScanner()
             udp_ports = ports_udp or os.environ.get("CLAWPWN_MASSCAN_PORTS_UDP", "0-65535")
             print("[*] UDP scan (nmap)")
-            udp_results = await self.nmap.scan_host_udp(
-                target, ports=udp_ports, verbose=verbose
-            )
+            udp_results = await self.nmap.scan_host_udp(target, ports=udp_ports, verbose=verbose)
             if udp_results:
                 udp_host = udp_results[0]
                 for port in udp_host.ports:
@@ -364,7 +359,7 @@ class NetworkDiscovery:
         }
         return common.get(port, "unknown")
 
-    async def enumerate_target(self, target: str) -> Dict[str, Any]:
+    async def enumerate_target(self, target: str) -> dict[str, Any]:
         """
         Full enumeration of a target.
 
@@ -404,7 +399,7 @@ class NetworkDiscovery:
 
         return results
 
-    def print_summary(self, results: Dict[str, Any]) -> None:
+    def print_summary(self, results: dict[str, Any]) -> None:
         """Print a summary of discovery results."""
         print("\n" + "=" * 60)
         print("NETWORK DISCOVERY SUMMARY")
@@ -418,9 +413,7 @@ class NetworkDiscovery:
                 print("\nOpen Ports:")
                 for service in host.services:
                     banner = f" - {service.banner}" if service.banner else ""
-                    print(
-                        f"  {service.port}/{service.protocol}: {service.name}{banner}"
-                    )
+                    print(f"  {service.port}/{service.protocol}: {service.name}{banner}")
 
         web_services = results.get("web_services", [])
         if web_services:

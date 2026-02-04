@@ -43,7 +43,15 @@ def test_merge_host_results():
     results_list = [
         [MasscanHostResult(ip="10.0.0.1", ports=[MasscanPortScanResult(22, "tcp", "open")])],
         [MasscanHostResult(ip="10.0.0.1", ports=[MasscanPortScanResult(80, "tcp", "open")])],
-        [MasscanHostResult(ip="10.0.0.1", ports=[MasscanPortScanResult(22, "tcp", "open"), MasscanPortScanResult(443, "tcp", "open")])],
+        [
+            MasscanHostResult(
+                ip="10.0.0.1",
+                ports=[
+                    MasscanPortScanResult(22, "tcp", "open"),
+                    MasscanPortScanResult(443, "tcp", "open"),
+                ],
+            )
+        ],
     ]
     discovery = network_module.NetworkDiscovery(project_dir=None)
     merged = discovery._merge_host_results(results_list, "10.0.0.1")
@@ -73,9 +81,7 @@ async def test_tcp_connect_fallback_when_masscan_empty(monkeypatch):
                 NmapHostResult(
                     ip=target,
                     ports=[
-                        NmapPortScanResult(
-                            port=22, protocol="tcp", state="open", service="ssh"
-                        )
+                        NmapPortScanResult(port=22, protocol="tcp", state="open", service="ssh")
                     ],
                 )
             ]
@@ -87,6 +93,7 @@ async def test_tcp_connect_fallback_when_masscan_empty(monkeypatch):
 
     monkeypatch.setattr(network_module, "MasscanScanner", lambda: FakeMasscan())
     monkeypatch.setattr(network_module, "NmapScanner", lambda: fake_nmap)
+    monkeypatch.setattr(network_module, "can_raw_scan", lambda _: True)
 
     discovery = network_module.NetworkDiscovery(project_dir=None)
     info = await discovery.scan_host(

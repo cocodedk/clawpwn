@@ -1,16 +1,13 @@
 """Scanner module for ClawPwn - passive and active vulnerability scanning."""
 
-import asyncio
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
-from urllib.parse import urljoin, parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
-from clawpwn.tools.http import HTTPClient, HTTPResponse, check_headers
-from clawpwn.modules.session import SessionManager
-from clawpwn.db.models import Finding
 from clawpwn.config import get_project_db_path
+from clawpwn.modules.session import SessionManager
+from clawpwn.tools.http import HTTPClient, HTTPResponse
 
 
 @dataclass
@@ -32,7 +29,7 @@ class ScanConfig:
     """Configuration for a scan."""
 
     target: str
-    scan_types: List[str] = field(default_factory=lambda: ["all"])
+    scan_types: list[str] = field(default_factory=lambda: ["all"])
     depth: str = "normal"  # quick, normal, deep
     threads: int = 10
     timeout: float = 30.0
@@ -42,16 +39,16 @@ class ScanConfig:
 class PassiveScanner:
     """Passive scanner that analyzes responses without sending test payloads."""
 
-    def __init__(self, project_dir: Optional[Path] = None):
+    def __init__(self, project_dir: Path | None = None):
         self.project_dir = project_dir
-        self.session: Optional[SessionManager] = None
+        self.session: SessionManager | None = None
 
         if project_dir:
             db_path = get_project_db_path(project_dir)
             if db_path and db_path.exists():
                 self.session = SessionManager(db_path)
 
-    async def scan_response(self, response: HTTPResponse) -> List[ScanResult]:
+    async def scan_response(self, response: HTTPResponse) -> list[ScanResult]:
         """
         Passively scan an HTTP response for issues.
 
@@ -77,7 +74,7 @@ class PassiveScanner:
 
         return findings
 
-    def _check_security_headers(self, response: HTTPResponse) -> List[ScanResult]:
+    def _check_security_headers(self, response: HTTPResponse) -> list[ScanResult]:
         """Check for missing security headers."""
         findings = []
 
@@ -112,7 +109,7 @@ class PassiveScanner:
 
         return findings
 
-    def _check_information_disclosure(self, response: HTTPResponse) -> List[ScanResult]:
+    def _check_information_disclosure(self, response: HTTPResponse) -> list[ScanResult]:
         """Check for information disclosure in response."""
         findings = []
 
@@ -181,7 +178,7 @@ class PassiveScanner:
 
         return findings
 
-    def _check_error_patterns(self, response: HTTPResponse) -> List[ScanResult]:
+    def _check_error_patterns(self, response: HTTPResponse) -> list[ScanResult]:
         """Check for error patterns that indicate issues."""
         findings = []
 
@@ -217,16 +214,16 @@ class PassiveScanner:
 class ActiveScanner:
     """Active scanner that sends test payloads to detect vulnerabilities."""
 
-    def __init__(self, project_dir: Optional[Path] = None):
+    def __init__(self, project_dir: Path | None = None):
         self.project_dir = project_dir
-        self.session: Optional[SessionManager] = None
+        self.session: SessionManager | None = None
 
         if project_dir:
             db_path = get_project_db_path(project_dir)
             if db_path and db_path.exists():
                 self.session = SessionManager(db_path)
 
-    async def scan_target(self, target: str, depth: str = "normal") -> List[ScanResult]:
+    async def scan_target(self, target: str, depth: str = "normal") -> list[ScanResult]:
         """
         Actively scan a target for vulnerabilities.
 
@@ -267,7 +264,7 @@ class ActiveScanner:
 
     async def _test_sql_injection(
         self, client: HTTPClient, target: str, depth: str
-    ) -> List[ScanResult]:
+    ) -> list[ScanResult]:
         """Test for SQL injection vulnerabilities."""
         findings = []
 
@@ -288,15 +285,13 @@ class ActiveScanner:
         if parsed.query:
             params = parse_qs(parsed.query)
 
-            for param_name, param_values in params.items():
+            for param_name, _param_values in params.items():
                 for payload in payloads[:4] if depth == "quick" else payloads:
                     test_params = {k: v[0] if v else "" for k, v in params.items()}
                     test_params[param_name] = payload
 
                     try:
-                        response = await client.request(
-                            "GET", target, params=test_params
-                        )
+                        response = await client.request("GET", target, params=test_params)
 
                         # Check for SQL error indicators
                         sql_errors = [
@@ -329,9 +324,7 @@ class ActiveScanner:
 
         return findings
 
-    async def _test_xss(
-        self, client: HTTPClient, target: str, depth: str
-    ) -> List[ScanResult]:
+    async def _test_xss(self, client: HTTPClient, target: str, depth: str) -> list[ScanResult]:
         """Test for XSS vulnerabilities."""
         findings = []
 
@@ -348,15 +341,13 @@ class ActiveScanner:
         if parsed.query:
             params = parse_qs(parsed.query)
 
-            for param_name, param_values in params.items():
+            for param_name, _param_values in params.items():
                 for payload in payloads[:2] if depth == "quick" else payloads:
                     test_params = {k: v[0] if v else "" for k, v in params.items()}
                     test_params[param_name] = payload
 
                     try:
-                        response = await client.request(
-                            "GET", target, params=test_params
-                        )
+                        response = await client.request("GET", target, params=test_params)
 
                         # Check if payload is reflected
                         if payload in response.body:
@@ -384,9 +375,7 @@ class ActiveScanner:
 
         return findings
 
-    async def _test_path_traversal(
-        self, client: HTTPClient, target: str
-    ) -> List[ScanResult]:
+    async def _test_path_traversal(self, client: HTTPClient, target: str) -> list[ScanResult]:
         """Test for path traversal vulnerabilities."""
         findings = []
 
@@ -455,9 +444,7 @@ class ActiveScanner:
 
         return findings
 
-    async def _test_command_injection(
-        self, client: HTTPClient, target: str
-    ) -> List[ScanResult]:
+    async def _test_command_injection(self, client: HTTPClient, target: str) -> list[ScanResult]:
         """Test for command injection vulnerabilities."""
         findings = []
 
@@ -503,7 +490,7 @@ class ActiveScanner:
 
     async def _test_idor(
         self, client: HTTPClient, target: str, base_response: HTTPResponse
-    ) -> List[ScanResult]:
+    ) -> list[ScanResult]:
         """Test for IDOR (Insecure Direct Object Reference) vulnerabilities."""
         findings = []
 
@@ -556,20 +543,18 @@ class ActiveScanner:
 class Scanner:
     """Main scanner class that combines passive and active scanning."""
 
-    def __init__(self, project_dir: Optional[Path] = None):
+    def __init__(self, project_dir: Path | None = None):
         self.project_dir = project_dir
         self.passive_scanner = PassiveScanner(project_dir)
         self.active_scanner = ActiveScanner(project_dir)
-        self.session: Optional[SessionManager] = None
+        self.session: SessionManager | None = None
 
         if project_dir:
             db_path = get_project_db_path(project_dir)
             if db_path and db_path.exists():
                 self.session = SessionManager(db_path)
 
-    async def scan(
-        self, target: str, config: Optional[ScanConfig] = None
-    ) -> List[ScanResult]:
+    async def scan(self, target: str, config: ScanConfig | None = None) -> list[ScanResult]:
         """
         Run a complete scan (passive + active).
 
@@ -616,7 +601,7 @@ class Scanner:
 
         return all_findings
 
-    def _print_findings_summary(self, findings: List[ScanResult]) -> None:
+    def _print_findings_summary(self, findings: list[ScanResult]) -> None:
         """Print a summary of findings."""
         if not findings:
             print("\n[+] No vulnerabilities found.")
@@ -656,9 +641,7 @@ class Scanner:
 
 
 # Convenience function
-async def quick_scan(
-    target: str, project_dir: Optional[Path] = None
-) -> List[ScanResult]:
+async def quick_scan(target: str, project_dir: Path | None = None) -> list[ScanResult]:
     """Quick scan of a target."""
     scanner = Scanner(project_dir)
     return await scanner.scan(target, ScanConfig(target=target, depth="quick"))

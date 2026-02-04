@@ -7,15 +7,16 @@ Supports multiple configuration sources in order of priority:
 4. Default values (lowest priority)
 """
 
-import os
 import hashlib
+import os
 import re
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
+
 import yaml
 
 
-def load_env_file(env_path: Path) -> Dict[str, str]:
+def load_env_file(env_path: Path) -> dict[str, str]:
     """Load environment variables from .env file."""
     env_vars = {}
     if env_path.exists():
@@ -30,7 +31,7 @@ def load_env_file(env_path: Path) -> Dict[str, str]:
     return env_vars
 
 
-def load_global_config() -> Dict[str, Any]:
+def load_global_config() -> dict[str, Any]:
     """Load global configuration from ~/.clawpwn/config.yml."""
     config_path = Path.home() / ".clawpwn" / "config.yml"
     if config_path.exists():
@@ -39,7 +40,7 @@ def load_global_config() -> Dict[str, Any]:
     return {}
 
 
-def load_project_config(project_dir: Optional[Path] = None) -> Dict[str, str]:
+def load_project_config(project_dir: Path | None = None) -> dict[str, str]:
     """Load project-specific configuration from .env file."""
     if project_dir is None:
         # Try to find project directory
@@ -61,7 +62,7 @@ def _storage_name(project_dir: Path) -> str:
     return f"{slug}-{digest}"
 
 
-def get_project_storage_dir(project_dir: Optional[Path]) -> Optional[Path]:
+def get_project_storage_dir(project_dir: Path | None) -> Path | None:
     """Resolve the storage directory for a project (.clawpwn or data dir)."""
     if project_dir is None:
         return None
@@ -114,7 +115,7 @@ def ensure_project_storage_dir(project_dir: Path) -> Path:
     return storage
 
 
-def get_project_db_path(project_dir: Optional[Path]) -> Optional[Path]:
+def get_project_db_path(project_dir: Path | None) -> Path | None:
     """Get the project database path."""
     storage = get_project_storage_dir(project_dir)
     if storage is None:
@@ -122,7 +123,7 @@ def get_project_db_path(project_dir: Optional[Path]) -> Optional[Path]:
     return storage / "clawpwn.db"
 
 
-def get_project_env_path(project_dir: Optional[Path]) -> Optional[Path]:
+def get_project_env_path(project_dir: Path | None) -> Path | None:
     """Get the project .env path."""
     storage = get_project_storage_dir(project_dir)
     if storage is None:
@@ -130,9 +131,7 @@ def get_project_env_path(project_dir: Optional[Path]) -> Optional[Path]:
     return storage / ".env"
 
 
-def get_config(
-    key: str, project_dir: Optional[Path] = None, default: Any = None
-) -> Any:
+def get_config(key: str, project_dir: Path | None = None, default: Any = None) -> Any:
     """
     Get configuration value with priority:
     1. Environment variable
@@ -167,9 +166,7 @@ def get_config(
     return default
 
 
-def get_api_key(
-    provider: str = "anthropic", project_dir: Optional[Path] = None
-) -> Optional[str]:
+def get_api_key(provider: str = "anthropic", project_dir: Path | None = None) -> str | None:
     """
     Get API key for a provider.
 
@@ -195,17 +192,17 @@ def get_api_key(
     return get_config(env_var, project_dir)
 
 
-def get_llm_provider(project_dir: Optional[Path] = None) -> str:
+def get_llm_provider(project_dir: Path | None = None) -> str:
     """Get LLM provider (default: anthropic)."""
     return get_config("CLAWPWN_LLM_PROVIDER", project_dir, default="anthropic")
 
 
-def get_llm_model(project_dir: Optional[Path] = None) -> Optional[str]:
+def get_llm_model(project_dir: Path | None = None) -> str | None:
     """Get LLM model name."""
     return get_config("CLAWPWN_LLM_MODEL", project_dir)
 
 
-def get_llm_base_url(project_dir: Optional[Path] = None) -> Optional[str]:
+def get_llm_base_url(project_dir: Path | None = None) -> str | None:
     """Get LLM base URL."""
     return get_config("CLAWPWN_LLM_BASE_URL", project_dir)
 

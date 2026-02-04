@@ -1,6 +1,5 @@
 """Tests for HTTP tools module."""
 
-import pytest
 import respx
 from httpx import Response
 
@@ -13,9 +12,7 @@ class TestHTTPClient:
     @respx.mock
     async def test_get_request(self):
         """Test basic GET request."""
-        route = respx.get("https://example.com").mock(
-            return_value=Response(200, text="Hello World")
-        )
+        respx.get("https://example.com").mock(return_value=Response(200, text="Hello World"))
 
         async with HTTPClient() as client:
             response = await client.get("https://example.com")
@@ -27,21 +24,17 @@ class TestHTTPClient:
     @respx.mock
     async def test_post_request(self):
         """Test POST request."""
-        route = respx.post("https://example.com/api").mock(
-            return_value=Response(201, text="Created")
-        )
+        respx.post("https://example.com/api").mock(return_value=Response(201, text="Created"))
 
         async with HTTPClient() as client:
-            response = await client.post(
-                "https://example.com/api", data={"key": "value"}
-            )
+            response = await client.post("https://example.com/api", data={"key": "value"})
 
         assert response.status_code == 201
 
     @respx.mock
     async def test_response_headers(self):
         """Test that response headers are captured."""
-        route = respx.get("https://example.com").mock(
+        respx.get("https://example.com").mock(
             return_value=Response(
                 200,
                 text="OK",
@@ -65,10 +58,8 @@ class TestHTTPClient:
     @respx.mock
     async def test_cookies_preserved(self):
         """Test that cookies are preserved."""
-        route = respx.get("https://example.com").mock(
-            return_value=Response(
-                200, text="OK", headers={"Set-Cookie": "session=abc123; Path=/"}
-            )
+        respx.get("https://example.com").mock(
+            return_value=Response(200, text="OK", headers={"Set-Cookie": "session=abc123; Path=/"})
         )
 
         async with HTTPClient() as client:
@@ -79,7 +70,7 @@ class TestHTTPClient:
     @respx.mock
     async def test_check_robots_txt_exists(self):
         """Test robots.txt check when file exists."""
-        route = respx.get("https://example.com/robots.txt").mock(
+        respx.get("https://example.com/robots.txt").mock(
             return_value=Response(200, text="User-agent: *\nDisallow: /admin")
         )
 
@@ -92,7 +83,7 @@ class TestHTTPClient:
     @respx.mock
     async def test_check_robots_txt_missing(self):
         """Test robots.txt check when file doesn't exist."""
-        route = respx.get("https://example.com/robots.txt").mock(
+        respx.get("https://example.com/robots.txt").mock(
             return_value=Response(404, text="Not Found")
         )
 
@@ -127,9 +118,7 @@ class TestWebCrawler:
         """Test basic crawling."""
         # Mock the base URL
         respx.get("https://example.com").mock(
-            return_value=Response(
-                200, text='<html><body><a href="/page1">Page 1</a></body></html>'
-            )
+            return_value=Response(200, text='<html><body><a href="/page1">Page 1</a></body></html>')
         )
 
         # Mock discovered pages

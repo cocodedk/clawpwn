@@ -1,13 +1,12 @@
 """Session management for ClawPwn projects."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from clawpwn.db.models import Project, Finding, Log, ProjectState
+from clawpwn.db.models import Finding, Log, Project, ProjectState
 
 
 class SessionManager:
@@ -26,7 +25,7 @@ class SessionManager:
         self.session.commit()
         return project
 
-    def get_project(self) -> Optional[Project]:
+    def get_project(self) -> Project | None:
         """Get the current project."""
         return self.session.query(Project).first()
 
@@ -37,7 +36,7 @@ class SessionManager:
             raise ValueError("No project found")
 
         project.target = target
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(UTC)
         self.session.commit()
 
     def update_phase(self, phase: str) -> None:
@@ -47,7 +46,7 @@ class SessionManager:
             raise ValueError("No project found")
 
         project.current_phase = phase
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(UTC)
         self.session.commit()
 
         # Log the phase change
@@ -90,7 +89,7 @@ class SessionManager:
         self,
         message: str,
         level: str = "INFO",
-        phase: Optional[str] = None,
+        phase: str | None = None,
         details: str = "",
     ) -> Log:
         """Add a log entry."""
@@ -109,25 +108,21 @@ class SessionManager:
         self.session.commit()
         return log
 
-    def get_state(self) -> Optional[ProjectState]:
+    def get_state(self) -> ProjectState | None:
         """Get the current project state as a ProjectState object."""
         project = self.get_project()
         if not project:
             return None
 
         # Count findings by severity
-        findings_count = (
-            self.session.query(Finding).filter_by(project_id=project.id).count()
-        )
+        findings_count = self.session.query(Finding).filter_by(project_id=project.id).count()
         critical_count = (
             self.session.query(Finding)
             .filter_by(project_id=project.id, severity="critical")
             .count()
         )
         high_count = (
-            self.session.query(Finding)
-            .filter_by(project_id=project.id, severity="high")
-            .count()
+            self.session.query(Finding).filter_by(project_id=project.id, severity="high").count()
         )
 
         return ProjectState(

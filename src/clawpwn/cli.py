@@ -2,24 +2,19 @@
 
 import asyncio
 import os
-import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 
-from clawpwn.db.init import init_db
-from clawpwn.db.models import ProjectState
-from clawpwn.modules.session import SessionManager
-from clawpwn.config import get_project_db_path, get_project_env_path
-from clawpwn.modules.scanner import Scanner, ScanConfig
-from clawpwn.modules.network import NetworkDiscovery
 from clawpwn.ai.orchestrator import AIOrchestrator
-from clawpwn.ai.nli import NaturalLanguageInterface
+from clawpwn.config import get_project_db_path, get_project_env_path
+from clawpwn.db.init import init_db
+from clawpwn.modules.network import NetworkDiscovery
+from clawpwn.modules.scanner import ScanConfig, Scanner
+from clawpwn.modules.session import SessionManager
 
 app = typer.Typer(
     name="clawpwn",
@@ -33,9 +28,11 @@ console = Console()
 def version() -> None:
     """Show the installed ClawPwn version."""
     try:
-        from importlib.metadata import PackageNotFoundError, version as pkg_version
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as pkg_version
     except ImportError:  # pragma: no cover
-        from importlib_metadata import PackageNotFoundError, version as pkg_version
+        from importlib_metadata import PackageNotFoundError
+        from importlib_metadata import version as pkg_version
 
     try:
         current_version = pkg_version("clawpwn")
@@ -45,7 +42,7 @@ def version() -> None:
     console.print(f"ClawPwn {current_version}")
 
 
-def get_project_dir() -> Optional[Path]:
+def get_project_dir() -> Path | None:
     """Find the project directory by looking for a .clawpwn marker."""
     current = Path.cwd()
     while current != current.parent:
@@ -60,9 +57,7 @@ def require_project() -> Path:
     """Ensure we're in a clawpwn project directory."""
     project_dir = get_project_dir()
     if not project_dir:
-        console.print(
-            "[red]Error: Not in a clawpwn project. Run 'clawpwn init' first.[/red]"
-        )
+        console.print("[red]Error: Not in a clawpwn project. Run 'clawpwn init' first.[/red]")
         raise typer.Exit(1)
     return project_dir
 
@@ -117,6 +112,7 @@ def init():
 
     # Create config template
     from clawpwn.config import create_project_config_template
+
     env_path = create_project_config_template(project_dir)
 
     if storage_dir == clawpwn_dir:
@@ -246,17 +242,13 @@ def list_projects():
 
     console.print("[bold]Projects:[/bold]")
     for p in projects:
-        console.print(
-            f"  • [cyan]{p['name']}[/cyan] - Phase: {p['phase']} - Target: {p['target']}"
-        )
+        console.print(f"  • [cyan]{p['name']}[/cyan] - Phase: {p['phase']} - Target: {p['target']}")
 
 
 @app.command()
 def scan(
     auto: bool = typer.Option(False, "--auto", help="Run AI-guided scan automatically"),
-    depth: str = typer.Option(
-        "normal", "--depth", help="Scan depth: quick, normal, deep"
-    ),
+    depth: str = typer.Option("normal", "--depth", help="Scan depth: quick, normal, deep"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose scan output"),
     scanner: str = typer.Option(
         "rustscan",
@@ -300,11 +292,7 @@ def scan(
 
     async def run_scan():
         # Port scanner choice from CLI
-        port_scanner_name = (
-            scanner.strip().lower()
-            if isinstance(scanner, str)
-            else "rustscan"
-        )
+        port_scanner_name = scanner.strip().lower() if isinstance(scanner, str) else "rustscan"
         if port_scanner_name not in ("rustscan", "masscan", "nmap"):
             port_scanner_name = "rustscan"
         parallel_groups = max(1, int(parallel)) if isinstance(parallel, int) else 4
@@ -397,23 +385,15 @@ def scan(
 
         # Auto-scan discovered web services when target is an IP
         all_findings = []
-        web_services = [
-            s
-            for s in host_info.services
-            if s.name in ["http", "https", "http-proxy"]
-        ]
+        web_services = [s for s in host_info.services if s.name in ["http", "https", "http-proxy"]]
         if web_services:
             config = ScanConfig(
                 target=host_target,
                 depth=depth,
             )
-            console.print(
-                f"[*] Phase 2: Web Application Scanning ({len(web_services)} service(s))"
-            )
+            console.print(f"[*] Phase 2: Web Application Scanning ({len(web_services)} service(s))")
             for ws in web_services:
-                url = (
-                    f"{'https' if ws.port == 443 else 'http'}://{host_target}:{ws.port}"
-                )
+                url = f"{'https' if ws.port == 443 else 'http'}://{host_target}:{ws.port}"
                 console.print(f"[*] Scanning {url}...")
                 web_started = time.perf_counter()
                 findings = await web_scanner.scan(url, config)
@@ -431,12 +411,15 @@ def scan(
         try:
             from clawpwn.ai.llm import LLMClient
 
-            service_summary = ", ".join(
-                [
-                    f"{s.port}/{s.protocol} {s.name} {s.banner}".strip()
-                    for s in host_info.services
-                ]
-            ) or "No open services detected"
+            service_summary = (
+                ", ".join(
+                    [
+                        f"{s.port}/{s.protocol} {s.name} {s.banner}".strip()
+                        for s in host_info.services
+                    ]
+                )
+                or "No open services detected"
+            )
 
             prompt = f"""Target: {host_target}
 Open ports: {host_info.open_ports or []}
@@ -489,9 +472,7 @@ Provide the next safe, authorized, low-risk enumeration steps. Do not exploit. F
                     if key not in unique:
                         unique[key] = (s.name, s.version)
 
-                results = await asyncio.gather(
-                    *[lookup_service(n, v) for n, v in unique.values()]
-                )
+                results = await asyncio.gather(*[lookup_service(n, v) for n, v in unique.values()])
                 console.print("\n" + "\n".join(results))
             except Exception as e:
                 console.print(f"[yellow]Vulnerability lookup failed: {e}[/yellow]")
@@ -511,9 +492,7 @@ Provide the next safe, authorized, low-risk enumeration steps. Do not exploit. F
             )
             console.print("\n[dim]Use 'clawpwn status' to see detailed findings.[/dim]")
         else:
-            console.print(
-                "\n[green]Scan complete! No obvious vulnerabilities found.[/green]"
-            )
+            console.print("\n[green]Scan complete! No obvious vulnerabilities found.[/green]")
 
         session.update_phase("Vulnerability Research")
 
@@ -527,7 +506,7 @@ def killchain(
     auto: bool = typer.Option(
         False, "--auto", help="Run full kill chain automatically with AI guidance"
     ),
-    target: Optional[str] = typer.Option(None, "--target", help="Override target URL"),
+    target: str | None = typer.Option(None, "--target", help="Override target URL"),
 ):
     """Run the full attack kill chain with AI guidance."""
     project_dir = require_project()
@@ -577,15 +556,11 @@ def killchain(
         else:
             # AI-assisted mode - ask for approval on critical actions
             console.print("[blue]Running in AI-assisted mode...[/blue]")
-            console.print(
-                "[dim]You will be prompted for approval on high-risk actions.[/dim]\n"
-            )
+            console.print("[dim]You will be prompted for approval on high-risk actions.[/dim]\n")
 
             def approval_callback(action):
                 console.print(f"\n[yellow]AI wants to:[/yellow] {action.reason}")
-                console.print(
-                    f"[dim]Target: {action.target} | Risk: {action.risk_level}[/dim]"
-                )
+                console.print(f"[dim]Target: {action.target} | Risk: {action.risk_level}[/dim]")
 
                 if action.risk_level in ["critical", "high"]:
                     response = input("Approve? (yes/no): ").lower().strip()
@@ -604,16 +579,12 @@ def killchain(
         if results["stopped"]:
             console.print(f"\n[yellow]Kill chain stopped: {results['reason']}[/yellow]")
         else:
-            console.print(f"\n[green]Kill chain complete![/green]")
+            console.print("\n[green]Kill chain complete![/green]")
             console.print(f"  Phases: {len(results['phases_completed'])}")
             console.print(f"  Findings: {len(results['findings'])}")
-            console.print(
-                f"  Exploits: {len([e for e in results['exploits'] if e.success])}"
-            )
+            console.print(f"  Exploits: {len([e for e in results['exploits'] if e.success])}")
 
-        session.update_phase(
-            "Exploitation" if results["exploits"] else "Vulnerability Research"
-        )
+        session.update_phase("Exploitation" if results["exploits"] else "Vulnerability Research")
 
     except Exception as e:
         console.print(f"[red]Kill chain failed: {e}[/red]")
@@ -622,9 +593,7 @@ def killchain(
 
 @app.command()
 def report(
-    format: str = typer.Option(
-        "html", "--format", help="Report format: html, pdf, json, md"
-    ),
+    format: str = typer.Option("html", "--format", help="Report format: html, pdf, json, md"),
     include_evidence: bool = typer.Option(
         True, "--include-evidence/--no-evidence", help="Include evidence in report"
     ),
@@ -632,7 +601,7 @@ def report(
     """Generate a penetration testing report."""
     project_dir = require_project()
 
-    from clawpwn.modules.report import ReportGenerator, ReportConfig
+    from clawpwn.modules.report import ReportConfig, ReportGenerator
 
     console.print(f"[blue]Generating {format.upper()} report...[/blue]")
 
@@ -658,7 +627,7 @@ def report(
 @app.command()
 def logs(
     limit: int = typer.Option(50, "--limit", help="Number of log entries to show"),
-    level: Optional[str] = typer.Option(
+    level: str | None = typer.Option(
         None, "--level", help="Filter by level (DEBUG, INFO, WARNING, ERROR)"
     ),
 ):
@@ -671,8 +640,9 @@ def logs(
 
     session = SessionManager(db_path)
 
-    from clawpwn.db.models import Log
     from sqlalchemy import desc
+
+    from clawpwn.db.models import Log
 
     query = session.session.query(Log).order_by(desc(Log.created_at))
 
@@ -711,58 +681,28 @@ def logs(
         )
 
 
-@app.command()
+@app.command(name="console")
+def console_cmd():
+    """Start the interactive console (recommended)."""
+    from clawpwn.console import ConsoleApp
+
+    project_dir = get_project_dir()
+    app_instance = ConsoleApp(project_dir)
+    app_instance.run()
+
+
+@app.command(hidden=True)
 def interactive():
-    """Start interactive natural language mode."""
-    project_dir = require_project()
-
-    console.print(
-        Panel(
-            "[green]Interactive Natural Language Mode[/green]\n\n"
-            "You can now type commands in natural language:\n"
-            "  • 'scan example.com'\n"
-            "  • 'check for vulnerabilities'\n"
-            "  • 'run killchain'\n"
-            "  • 'what's the status?'\n"
-            "  • 'help'\n\n"
-            "Type 'exit' or 'quit' to exit.",
-            title="Interactive Mode",
-            border_style="green",
-        )
-    )
-
-    nli = NaturalLanguageInterface(project_dir)
-
-    while True:
-        try:
-            console.print("\n[blue]clawpwn>[/blue] ", end="")
-            command = input()
-
-            if command.lower() in ["exit", "quit", "q"]:
-                console.print("[green]Goodbye![/green]")
-                break
-
-            if not command.strip():
-                continue
-
-            result = nli.process_command(command)
-
-            if result["success"]:
-                console.print(f"[green]✓[/green] {result['response']}")
-            else:
-                console.print(f"[yellow]![/yellow] {result['response']}")
-
-        except KeyboardInterrupt:
-            console.print("\n[green]Goodbye![/green]")
-            break
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+    """Alias for 'console' command."""
+    console_cmd()
 
 
 @app.command()
 def config(
     action: str = typer.Argument("show", help="Action: show, edit, init"),
-    global_config: bool = typer.Option(False, "--global", help="Edit global config instead of project"),
+    global_config: bool = typer.Option(
+        False, "--global", help="Edit global config instead of project"
+    ),
 ):
     """Manage ClawPwn configuration and API keys."""
     from clawpwn.config import (
@@ -771,7 +711,7 @@ def config(
         load_global_config,
         load_project_config,
     )
-    
+
     if action == "init":
         if global_config:
             config_path = create_global_config()
@@ -781,12 +721,13 @@ def config(
             env_path = create_project_config_template(project_dir)
             console.print(f"[green]Created project config:[/green] {env_path}")
             console.print("[dim]Edit the file and uncomment the API keys you want to use.[/dim]")
-    
+
     elif action == "show":
         if global_config:
             config = load_global_config()
             console.print("[bold]Global Configuration (~/.clawpwn/config.yml):[/bold]")
             import yaml
+
             console.print(yaml.dump(config, default_flow_style=False))
         else:
             project_dir = get_project_dir()
@@ -803,10 +744,14 @@ def config(
                         else:
                             console.print(f"  {key}={value}")
                 else:
-                    console.print("[dim]No project config found. Run 'clawpwn config init' to create one.[/dim]")
+                    console.print(
+                        "[dim]No project config found. Run 'clawpwn config init' to create one.[/dim]"
+                    )
             else:
-                console.print("[yellow]Not in a project directory. Use --global to show global config.[/yellow]")
-    
+                console.print(
+                    "[yellow]Not in a project directory. Use --global to show global config.[/yellow]"
+                )
+
     elif action == "edit":
         if global_config:
             config_path = create_global_config()
@@ -815,7 +760,7 @@ def config(
             project_dir = require_project()
             env_path = create_project_config_template(project_dir)
             console.print(f"[green]Edit this file:[/green] {env_path}")
-    
+
     else:
         console.print(f"[red]Unknown action: {action}. Use 'show', 'edit', or 'init'.[/red]")
 

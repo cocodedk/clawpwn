@@ -1,6 +1,5 @@
 """Tests for CLI commands."""
 
-import subprocess
 from pathlib import Path
 
 from clawpwn.cli import app, get_project_dir, require_project
@@ -67,6 +66,7 @@ class TestProjectDetection:
     def test_require_project_raises_outside_project(self, temp_dir: Path):
         """Test that require_project raises an exception outside a project."""
         import os
+
         import typer
 
         original_cwd = os.getcwd()
@@ -104,17 +104,6 @@ class TestCLICommandsExist:
         """Verify all documented commands are registered."""
         # The app should have commands registered
         # We check by looking at the app's registered groups/commands
-        expected_commands = [
-            "init",
-            "target",
-            "status",
-            "list-projects",
-            "scan",
-            "killchain",
-            "report",
-            "logs",
-            "interactive",
-        ]
 
         # Just verify the app object has commands
         # In Typer, commands are stored in .registered_commands or .commands

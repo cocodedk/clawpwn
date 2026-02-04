@@ -1,11 +1,9 @@
 """Tests for database models and operations."""
 
-import pytest
-from datetime import datetime
 from pathlib import Path
 
-from clawpwn.db.models import Project, Finding, Log, Base
-from clawpwn.db.init import init_db, get_session
+from clawpwn.db.init import init_db
+from clawpwn.db.models import Finding
 from clawpwn.modules.session import SessionManager
 
 
@@ -92,9 +90,7 @@ class TestFindingModel:
         session_manager.create_project("/tmp/test_project")
 
         # Add multiple findings
-        session_manager.add_finding(
-            "Finding 1", "critical", "Desc 1", attack_type="SQLi"
-        )
+        session_manager.add_finding("Finding 1", "critical", "Desc 1", attack_type="SQLi")
         session_manager.add_finding("Finding 2", "high", "Desc 2", attack_type="XSS")
         session_manager.add_finding("Finding 3", "medium", "Desc 3", attack_type="Info")
 
@@ -230,7 +226,6 @@ class TestDatabaseRelationships:
         session_manager.session.commit()
 
         # Verify finding is also deleted
-        from clawpwn.db.models import Finding
 
         findings = session_manager.session.query(Finding).all()
         assert len(findings) == 0

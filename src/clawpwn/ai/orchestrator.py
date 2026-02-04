@@ -1,18 +1,18 @@
 """AI Orchestrator for ClawPwn - manages AI decision making and kill chain automation."""
 
-import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Callable
+from typing import Any
 
 from clawpwn.ai.llm import LLMClient
-from clawpwn.modules.session import SessionManager
-from clawpwn.modules.scanner import Scanner, ScanConfig, ScanResult
-from clawpwn.modules.network import NetworkDiscovery
 from clawpwn.config import get_project_db_path
-from clawpwn.modules.vulndb import VulnDB
 from clawpwn.modules.exploit import ExploitManager, ExploitResult
+from clawpwn.modules.network import NetworkDiscovery
+from clawpwn.modules.scanner import ScanConfig, Scanner, ScanResult
+from clawpwn.modules.session import SessionManager
+from clawpwn.modules.vulndb import VulnDB
 
 
 class Phase(Enum):
@@ -50,7 +50,7 @@ class AIAction:
     action_type: ActionType
     reason: str
     target: str = ""
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict)
     requires_approval: bool = False
     risk_level: str = "low"  # low, medium, high, critical
 
@@ -61,18 +61,18 @@ class KillChainState:
 
     current_phase: Phase
     target: str
-    findings: List[ScanResult] = field(default_factory=list)
-    exploited: List[ExploitResult] = field(default_factory=list)
-    hosts_discovered: List[str] = field(default_factory=list)
-    services_discovered: List[Dict[str, Any]] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    findings: list[ScanResult] = field(default_factory=list)
+    exploited: list[ExploitResult] = field(default_factory=list)
+    hosts_discovered: list[str] = field(default_factory=list)
+    services_discovered: list[dict[str, Any]] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     auto_mode: bool = False
 
 
 class AIOrchestrator:
     """Orchestrates AI decisions and actions during penetration testing."""
 
-    def __init__(self, project_dir: Path, llm_client: Optional[LLMClient] = None):
+    def __init__(self, project_dir: Path, llm_client: LLMClient | None = None):
         self.project_dir = project_dir
         db_path = get_project_db_path(project_dir)
         if db_path is None:
@@ -88,7 +88,7 @@ class AIOrchestrator:
         self.exploit_manager = ExploitManager(project_dir)
 
         # State tracking
-        self.kill_chain_state: Optional[KillChainState] = None
+        self.kill_chain_state: KillChainState | None = None
 
         # Safety configuration
         self.require_approval_for = ["critical", "exploitation", "exfiltration"]
@@ -104,8 +104,8 @@ class AIOrchestrator:
         self,
         target: str,
         auto: bool = False,
-        approval_callback: Optional[Callable[[AIAction], bool]] = None,
-    ) -> Dict[str, Any]:
+        approval_callback: Callable[[AIAction], bool] | None = None,
+    ) -> dict[str, Any]:
         """
         Run the full kill chain with AI guidance.
 
@@ -154,9 +154,7 @@ class AIOrchestrator:
             results["phases_completed"].append("enumeration")
 
             # Phase 3: Vulnerability Research
-            if not await self._run_phase(
-                Phase.VULNERABILITY_RESEARCH, approval_callback
-            ):
+            if not await self._run_phase(Phase.VULNERABILITY_RESEARCH, approval_callback):
                 results["stopped"] = True
                 results["reason"] = "Stopped during vulnerability research"
                 return results
@@ -171,9 +169,7 @@ class AIOrchestrator:
 
             # Phase 5: Post-Exploitation
             if self.kill_chain_state.exploited:
-                if not await self._run_phase(
-                    Phase.POST_EXPLOITATION, approval_callback
-                ):
+                if not await self._run_phase(Phase.POST_EXPLOITATION, approval_callback):
                     results["stopped"] = True
                     results["reason"] = "Stopped during post-exploitation"
                     return results
@@ -192,7 +188,7 @@ class AIOrchestrator:
         return results
 
     async def _run_phase(
-        self, phase: Phase, approval_callback: Optional[Callable[[AIAction], bool]]
+        self, phase: Phase, approval_callback: Callable[[AIAction], bool] | None
     ) -> bool:
         """Run a single kill chain phase."""
         print(f"\n[PHASE] {phase.value}")
@@ -210,7 +206,7 @@ class AIOrchestrator:
             if approval_callback:
                 approved = approval_callback(action)
                 if not approved:
-                    print(f"[!] Action not approved by user. Stopping.")
+                    print("[!] Action not approved by user. Stopping.")
                     return False
             else:
                 # Default: ask via console
@@ -219,9 +215,7 @@ class AIOrchestrator:
                 print(f"    Risk Level: {action.risk_level}")
 
                 if action.risk_level in ["critical", "high"]:
-                    response = (
-                        input("\nApprove this action? (yes/no): ").lower().strip()
-                    )
+                    response = input("\nApprove this action? (yes/no): ").lower().strip()
                     if response != "yes":
                         print("[!] Action not approved. Stopping.")
                         return False
@@ -244,7 +238,9 @@ APPROVAL: <yes|no> (whether this needs human approval)
 
 Be specific and actionable."""
 
-        message = f"Current Phase: {phase.value}\n\nState:\n{state_summary}\n\nWhat action should I take?"
+        message = (
+            f"Current Phase: {phase.value}\n\nState:\n{state_summary}\n\nWhat action should I take?"
+        )
 
         try:
             response = self.llm.chat(message, system_prompt)
@@ -280,9 +276,7 @@ Be specific and actionable."""
                 elif line.startswith("RISK:"):
                     risk = line.replace("RISK:", "").strip().lower()
                 elif line.startswith("APPROVAL:"):
-                    requires_approval = (
-                        line.replace("APPROVAL:", "").strip().lower() == "yes"
-                    )
+                    requires_approval = line.replace("APPROVAL:", "").strip().lower() == "yes"
 
             # If no target specified, use current target
             if not target and self.kill_chain_state:
@@ -342,9 +336,7 @@ Be specific and actionable."""
             print("[!] No kill chain state initialized")
             return False
 
-        target = action.target or (
-            self.kill_chain_state.target if self.kill_chain_state else ""
-        )
+        target = action.target or (self.kill_chain_state.target if self.kill_chain_state else "")
 
         config = ScanConfig(
             target=target,
@@ -411,7 +403,7 @@ Be specific and actionable."""
             )
 
             if result.success:
-                print(f"[+] Exploitation successful!")
+                print("[+] Exploitation successful!")
                 self.kill_chain_state.exploited.append(result)
                 self.session.add_log(
                     f"Successfully exploited {target_finding.title}",
@@ -425,9 +417,7 @@ Be specific and actionable."""
 
     async def _execute_enumeration(self, action: AIAction) -> bool:
         """Execute enumeration action."""
-        target = action.target or (
-            self.kill_chain_state.target if self.kill_chain_state else ""
-        )
+        target = action.target or (self.kill_chain_state.target if self.kill_chain_state else "")
 
         print(f"[*] Enumerating {target}...")
 
@@ -438,9 +428,7 @@ Be specific and actionable."""
                 self.kill_chain_state.hosts_discovered.extend(
                     [h.ip for h in results.get("hosts", [])]
                 )
-                self.kill_chain_state.services_discovered.extend(
-                    results.get("services", [])
-                )
+                self.kill_chain_state.services_discovered.extend(results.get("services", []))
 
             self.network.print_summary(results)
 
@@ -451,7 +439,7 @@ Be specific and actionable."""
 
     async def _execute_research(self, action: AIAction) -> bool:
         """Execute vulnerability research action."""
-        print(f"[*] Researching vulnerabilities...")
+        print("[*] Researching vulnerabilities...")
 
         if not self.kill_chain_state:
             print("[!] No kill chain state initialized")
@@ -470,7 +458,7 @@ Be specific and actionable."""
 
         return True
 
-    async def _analyze_findings_with_ai(self, findings: List[ScanResult]) -> str:
+    async def _analyze_findings_with_ai(self, findings: list[ScanResult]) -> str:
         """Ask AI to analyze findings and provide insights."""
         system_prompt = "You are a security analyst. Review these findings and provide a brief tactical assessment. Be concise."
 
@@ -485,9 +473,7 @@ Be specific and actionable."""
         except Exception:
             return "Analysis complete. Review findings for exploitation opportunities."
 
-    def _select_finding_for_exploitation(
-        self, findings: List[ScanResult]
-    ) -> Optional[ScanResult]:
+    def _select_finding_for_exploitation(self, findings: list[ScanResult]) -> ScanResult | None:
         """Select the best finding for exploitation."""
         # Priority order
         for severity in ["critical", "high"]:
@@ -503,7 +489,7 @@ Be specific and actionable."""
 
         return None
 
-    def _map_finding_to_exploit_type(self, finding: ScanResult) -> Optional[str]:
+    def _map_finding_to_exploit_type(self, finding: ScanResult) -> str | None:
         """Map a finding to an exploit type."""
         attack_type = finding.attack_type.lower()
 
@@ -539,16 +525,14 @@ Be specific and actionable."""
 
         return "\n".join(lines)
 
-    def _print_kill_chain_summary(self, results: Dict[str, Any]) -> None:
+    def _print_kill_chain_summary(self, results: dict[str, Any]) -> None:
         """Print final kill chain summary."""
         print(f"\n{'=' * 60}")
         print("KILL CHAIN COMPLETE")
         print(f"{'=' * 60}")
         print(f"Phases completed: {', '.join(results['phases_completed'])}")
         print(f"Findings: {len(results['findings'])}")
-        print(
-            f"Successful exploits: {len([e for e in results['exploits'] if e.success])}"
-        )
+        print(f"Successful exploits: {len([e for e in results['exploits'] if e.success])}")
 
         if results["stopped"]:
             print(f"Status: Stopped - {results['reason']}")
@@ -557,7 +541,7 @@ Be specific and actionable."""
 
         print(f"{'=' * 60}\n")
 
-    def plan_recon(self, target: str) -> List[Dict[str, Any]]:
+    def plan_recon(self, target: str) -> list[dict[str, Any]]:
         """Plan reconnaissance tasks."""
         return [
             {"task": "Port scanning", "tool": "nmap", "priority": "high"},
@@ -565,7 +549,7 @@ Be specific and actionable."""
             {"task": "Web enumeration", "tool": "crawler", "priority": "medium"},
         ]
 
-    def should_exploit(self, finding: Dict[str, Any]) -> bool:
+    def should_exploit(self, finding: dict[str, Any]) -> bool:
         """Determine if a finding should be automatically exploited."""
         # Don't auto-exploit critical without approval
         if finding.get("severity") == "critical":

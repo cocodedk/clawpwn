@@ -1,16 +1,13 @@
 """Test configuration and fixtures for ClawPwn."""
 
-import os
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from clawpwn.db.models import Base, Project, Finding, Log
 from clawpwn.db.init import init_db
+from clawpwn.db.models import Finding, Project
 from clawpwn.modules.session import SessionManager
 
 

@@ -1,6 +1,6 @@
 """Tools package for ClawPwn."""
 
-from typing import Any, List, Protocol
+from typing import Any, Protocol
 
 from clawpwn.tools.masscan import HostResult, MasscanScanner, PortScanResult
 from clawpwn.tools.nmap import NmapScanner
@@ -15,7 +15,7 @@ class BaseScanner(Protocol):
         target: str,
         ports: str = "1-65535",
         **kwargs: Any,
-    ) -> List[HostResult]:
+    ) -> list[HostResult]:
         """Scan a target and return host results with open ports."""
         ...
 

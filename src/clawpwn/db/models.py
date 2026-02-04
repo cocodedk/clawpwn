@@ -1,20 +1,21 @@
 """Database models for ClawPwn using SQLAlchemy."""
 
-from datetime import datetime
-from pathlib import Path
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import (
-    create_engine,
     Column,
+    DateTime,
+    ForeignKey,
     Integer,
     String,
-    DateTime,
     Text,
-    ForeignKey,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import declarative_base, relationship
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
 
 Base = declarative_base()
 
@@ -28,13 +29,11 @@ class Project(Base):
     path = Column(String, nullable=False, unique=True)
     target = Column(String, nullable=True)
     current_phase = Column(String, default="Not Started")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
     # Relationships
-    findings = relationship(
-        "Finding", back_populates="project", cascade="all, delete-orphan"
-    )
+    findings = relationship("Finding", back_populates="project", cascade="all, delete-orphan")
     logs = relationship("Log", back_populates="project", cascade="all, delete-orphan")
 
 
@@ -57,7 +56,7 @@ class Finding(Base):
     target_url = Column(String)
     payload = Column(Text)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     # Relationship
     project = relationship("Project", back_populates="findings")
@@ -76,7 +75,7 @@ class Log(Base):
     message = Column(Text, nullable=False)
     details = Column(Text)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     # Relationship
     project = relationship("Project", back_populates="logs")
@@ -88,9 +87,9 @@ class ProjectState:
     def __init__(
         self,
         project_path: str,
-        target: Optional[str] = None,
+        target: str | None = None,
         current_phase: str = "Not Started",
-        created_at: Optional[datetime] = None,
+        created_at: datetime | None = None,
         findings_count: int = 0,
         critical_count: int = 0,
         high_count: int = 0,
@@ -98,7 +97,7 @@ class ProjectState:
         self.project_path = project_path
         self.target = target
         self.current_phase = current_phase
-        self.created_at = created_at or datetime.utcnow()
+        self.created_at = created_at or datetime.now(UTC)
         self.findings_count = findings_count
         self.critical_count = critical_count
         self.high_count = high_count

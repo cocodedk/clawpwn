@@ -32,6 +32,55 @@ clawpwn target https://example.com
 clawpwn
 ```
 
+## Installation (End Users)
+
+For a global install and optional scanner setup:
+
+```bash
+./install.sh
+```
+
+The installer may run on work or shared machines. It will **ask before changing any permissions**. See Permissions below.
+
+## Permissions
+
+Network scanners (masscan, rustscan) need **raw socket access** for SYN scans and service detection. The installer will **only change permissions with your consent**.
+
+### What the installer can do (Linux only)
+
+If you answer **y** when asked, it runs:
+
+```bash
+sudo setcap cap_net_raw+ep /path/to/masscan
+sudo setcap cap_net_raw+ep /path/to/rustscan
+```
+
+This grants **only** raw network access to those binaries. No user accounts or groups are modified.
+
+### If you skip
+
+Run scans with sudo:
+
+```bash
+sudo clawpwn scan
+```
+
+### Removing capabilities
+
+To revoke later:
+
+```bash
+sudo setcap -r /path/to/masscan
+sudo setcap -r /path/to/rustscan
+```
+
+### Summary
+
+| Binary   | Capability   | Purpose                          |
+|----------|--------------|----------------------------------|
+| masscan  | cap_net_raw  | Send/receive raw packets (SYN)   |
+| rustscan | cap_net_raw  | Send/receive raw packets (ports) |
+
 ## Setup Script
 
 ```bash

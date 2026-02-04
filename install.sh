@@ -37,8 +37,42 @@ if ! command -v rustscan >/dev/null 2>&1; then
   fi
 fi
 
-# Ensure .env exists and has required keys
-ENV_FILE=".env"
+# --- Network Scanner Permissions ---
+if [ "$(uname)" = "Linux" ] && command -v setcap >/dev/null 2>&1; then
+  echo ""
+  echo "=== Network Scanner Permissions ==="
+  echo ""
+  echo "ClawPwn's network scanners (masscan, rustscan) need raw socket access"
+  echo "for SYN scans and service detection. This requires elevated privileges."
+  echo ""
+  echo "Options:"
+  echo "  1. Set capabilities on scanner binaries (recommended for work machines)"
+  echo "     Grants only raw network access to those binaries; no sudo needed for scans."
+  echo ""
+  echo "  2. Skip and use sudo when scanning: sudo clawpwn scan ..."
+  echo ""
+  read -r -p "Set capabilities on scanner binaries? [y/N]: " setup_caps || true
+  if [[ "${setup_caps:-}" =~ ^[Yy]$ ]]; then
+    for bin in masscan rustscan; do
+      bin_path="$(command -v "$bin" 2>/dev/null || true)"
+      if [ -n "$bin_path" ]; then
+        echo "Setting cap_net_raw on $bin_path..."
+        if sudo setcap cap_net_raw+ep "$bin_path" 2>/dev/null; then
+          echo "  Done: $bin_path"
+        else
+          echo "  Failed: $bin_path (you may need to use sudo for scans)"
+        fi
+      fi
+    done
+  else
+    echo "Skipped. Run scans with: sudo clawpwn scan ... (or run this script again to set capabilities)"
+  fi
+  echo ""
+fi
+
+# Resolve .env path relative to install.sh so we never overwrite the wrong file
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/.env"
 if [ ! -f "$ENV_FILE" ]; then
   touch "$ENV_FILE"
 fi
@@ -55,19 +89,31 @@ get_env_value() {
   printf "%s" "${line#*=}"
 }
 
+# Consider key "set" if it exists in .env or in the current environment (so we don't prompt again)
+get_current_value() {
+  local key="$1"
+  local current
+  current="$(get_env_value "$key")"
+  if [ -z "$current" ]; then
+    # Bash indirect expansion: ${!key} is the value of the variable named by key
+    current="${!key:-}"
+  fi
+  printf "%s" "$current"
+}
+
 set_env_value() {
   local key="$1"
   local value="$2"
   if command -v python3 >/dev/null 2>&1; then
-    printf "%s\n%s\n" "$key" "$value" | python3 - <<'PY'
+    printf "%s\n%s\n%s\n" "$key" "$value" "$ENV_FILE" | python3 - <<'PY'
 from pathlib import Path
 import re
 import sys
 
-path = Path(".env")
 data = sys.stdin.read().splitlines()
 key = data[0] if data else ""
 value = data[1] if len(data) > 1 else ""
+path = Path(data[2]) if len(data) > 2 else Path(".env")
 
 lines = path.read_text().splitlines() if path.exists() else []
 found = False
@@ -120,8 +166,10 @@ required_keys=(
 )
 
 for key in "${required_keys[@]}"; do
-  current="$(get_env_value "$key")"
-  if [ -z "$current" ] || [ "$FORCE" = "true" ]; then
+  current="$(get_current_value "$key")"
+  if [ -n "$current" ] && [ "$FORCE" != "true" ]; then
+    echo "  $key already set, skipping (use --force to override)"
+  elif [ -z "$current" ] || [ "$FORCE" = "true" ]; then
     case "$key" in
       "CLAWPWN_LLM_PROVIDER")
         val="$(prompt_value "$key" "LLM provider (e.g., openai, anthropic, local)")"

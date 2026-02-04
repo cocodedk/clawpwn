@@ -1,20 +1,16 @@
 """LLM client for ClawPwn AI integration."""
 
-import os
-from typing import Optional, List, Dict, Any
 from pathlib import Path
+from typing import Any
 
 import httpx
 
 from clawpwn.config import (
     get_api_key,
-    get_config,
-    get_llm_provider,
-    get_llm_model,
     get_llm_base_url,
+    get_llm_model,
+    get_llm_provider,
     get_project_env_path,
-    create_project_config_template,
-    create_global_config,
 )
 
 
@@ -23,10 +19,10 @@ class LLMClient:
 
     def __init__(
         self,
-        provider: Optional[str] = None,
-        api_key: Optional[str] = None,
-        model: Optional[str] = None,
-        project_dir: Optional[Path] = None,
+        provider: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
+        project_dir: Path | None = None,
     ):
         self.provider = (provider or get_llm_provider(project_dir)).lower()
         self.project_dir = project_dir
@@ -38,11 +34,15 @@ class LLMClient:
             self.api_key = self._get_api_key_with_fallback()
 
         # Default models
-        self.model = model or get_llm_model(project_dir) or {
-            "anthropic": "claude-3-5-sonnet-20241022",
-            "openai": "gpt-4o",
-            "openrouter": "openai/gpt-4o-mini",
-        }.get(self.provider, "claude-3-5-sonnet-20241022")
+        self.model = (
+            model
+            or get_llm_model(project_dir)
+            or {
+                "anthropic": "claude-3-5-sonnet-20241022",
+                "openai": "gpt-4o",
+                "openrouter": "openai/gpt-4o-mini",
+            }.get(self.provider, "claude-3-5-sonnet-20241022")
+        )
 
         self.base_url = get_llm_base_url(project_dir)
 
@@ -60,7 +60,11 @@ class LLMClient:
                 "openrouter": "OPENROUTER_API_KEY",
             }.get(self.provider, f"{self.provider.upper()}_API_KEY")
 
-            env_path = get_project_env_path(self.project_dir) if self.project_dir else Path(".clawpwn/.env")
+            env_path = (
+                get_project_env_path(self.project_dir)
+                if self.project_dir
+                else Path(".clawpwn/.env")
+            )
 
             error_msg = f"""API key not found for provider: {self.provider}
 
@@ -87,7 +91,7 @@ Get your API key from:
 
         return api_key
 
-    def chat(self, message: str, system_prompt: Optional[str] = None) -> str:
+    def chat(self, message: str, system_prompt: str | None = None) -> str:
         """Send a chat message and get a response."""
         if self.provider == "anthropic":
             return self._chat_anthropic(message, system_prompt)
@@ -96,7 +100,7 @@ Get your API key from:
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
-    def _chat_anthropic(self, message: str, system_prompt: Optional[str] = None) -> str:
+    def _chat_anthropic(self, message: str, system_prompt: str | None = None) -> str:
         """Chat with Claude API."""
         base = self.base_url or "https://api.anthropic.com"
         url = f"{base.rstrip('/')}/v1/messages"
@@ -107,7 +111,7 @@ Get your API key from:
             "content-type": "application/json",
         }
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "max_tokens": 4096,
             "messages": [{"role": "user", "content": message}],
@@ -122,7 +126,7 @@ Get your API key from:
         data = response.json()
         return data["content"][0]["text"]
 
-    def _chat_openai(self, message: str, system_prompt: Optional[str] = None) -> str:
+    def _chat_openai(self, message: str, system_prompt: str | None = None) -> str:
         """Chat with OpenAI API."""
         if self.provider == "openrouter":
             base = self.base_url or "https://openrouter.ai/api/v1"
@@ -153,7 +157,7 @@ Get your API key from:
         data = response.json()
         return data["choices"][0]["message"]["content"]
 
-    def analyze_finding(self, finding_data: Dict[str, Any]) -> str:
+    def analyze_finding(self, finding_data: dict[str, Any]) -> str:
         """Analyze a finding and provide AI insights."""
         system_prompt = """You are a penetration testing expert. Analyze the finding and provide:
 1. A clear explanation of the vulnerability
@@ -164,9 +168,7 @@ Be concise and technical."""
         message = f"Analyze this finding:\n\n{str(finding_data)}"
         return self.chat(message, system_prompt)
 
-    def suggest_next_steps(
-        self, current_phase: str, findings: List[Dict[str, Any]]
-    ) -> str:
+    def suggest_next_steps(self, current_phase: str, findings: list[dict[str, Any]]) -> str:
         """Suggest next steps in the pentest based on current state."""
         system_prompt = """You are a penetration testing strategist. Based on the current phase and findings, suggest the next logical steps in the kill chain. Be specific and actionable."""
 

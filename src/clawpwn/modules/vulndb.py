@@ -7,7 +7,7 @@ exploits and vulnerabilities related to discovered services.
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -23,7 +23,7 @@ class ExploitInfo:
     edb_id: str = ""  # ExploitDB ID
     url: str = ""
     description: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     reliability: str = "unknown"  # high, medium, low, unknown
     verified: bool = False
 
@@ -37,14 +37,14 @@ class CVEInfo:
     severity: str  # CRITICAL, HIGH, MEDIUM, LOW
     cvss_score: float = 0.0
     published_date: str = ""
-    references: List[str] = field(default_factory=list)
+    references: list[str] = field(default_factory=list)
     cwe_id: str = ""
 
 
 class VulnDBClient:
     """Client for querying vulnerability databases."""
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Path | None = None):
         self.cache_dir = cache_dir or Path.home() / ".clawpwn" / "cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.client = httpx.Client(timeout=30.0)
@@ -52,9 +52,7 @@ class VulnDBClient:
     def __del__(self):
         self.client.close()
 
-    async def search_by_keyword(
-        self, keyword: str, max_results: int = 10
-    ) -> List[ExploitInfo]:
+    async def search_by_keyword(self, keyword: str, max_results: int = 10) -> list[ExploitInfo]:
         """
         Search for exploits by keyword.
 
@@ -77,7 +75,7 @@ class VulnDBClient:
 
         return exploits[:max_results]
 
-    async def search_by_cve(self, cve_id: str) -> Optional[CVEInfo]:
+    async def search_by_cve(self, cve_id: str) -> CVEInfo | None:
         """
         Search for CVE information.
 
@@ -89,7 +87,7 @@ class VulnDBClient:
         """
         return await self._query_nvd(cve_id)
 
-    async def search_by_version(self, product: str, version: str) -> List[CVEInfo]:
+    async def search_by_version(self, product: str, version: str) -> list[CVEInfo]:
         """
         Search for CVEs affecting a specific product version.
 
@@ -102,9 +100,7 @@ class VulnDBClient:
         """
         return await self._query_nvd_by_version(product, version)
 
-    async def find_exploits(
-        self, service_name: str, version: str = ""
-    ) -> List[ExploitInfo]:
+    async def find_exploits(self, service_name: str, version: str = "") -> list[ExploitInfo]:
         """
         Find exploits for a specific service.
 
@@ -118,9 +114,7 @@ class VulnDBClient:
         search_term = f"{service_name} {version}".strip()
         return await self.search_by_keyword(search_term)
 
-    async def _search_exploitdb(
-        self, keyword: str, max_results: int = 5
-    ) -> List[ExploitInfo]:
+    async def _search_exploitdb(self, keyword: str, max_results: int = 5) -> list[ExploitInfo]:
         """Search ExploitDB for exploits."""
         exploits = []
 
@@ -152,9 +146,7 @@ class VulnDBClient:
 
         return exploits
 
-    async def _search_github(
-        self, keyword: str, max_results: int = 5
-    ) -> List[ExploitInfo]:
+    async def _search_github(self, keyword: str, max_results: int = 5) -> list[ExploitInfo]:
         """Search GitHub for PoC exploits."""
         exploits = []
 
@@ -185,7 +177,7 @@ class VulnDBClient:
 
         return exploits
 
-    async def _query_nvd(self, cve_id: str) -> Optional[CVEInfo]:
+    async def _query_nvd(self, cve_id: str) -> CVEInfo | None:
         """Query NVD (National Vulnerability Database) for CVE details."""
         try:
             url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
@@ -210,9 +202,7 @@ class VulnDBClient:
                         severity=cvss.get("baseSeverity", "UNKNOWN"),
                         cvss_score=cvss.get("baseScore", 0.0),
                         published_date=cve.get("published", ""),
-                        references=[
-                            ref.get("url", "") for ref in cve.get("references", [])
-                        ],
+                        references=[ref.get("url", "") for ref in cve.get("references", [])],
                     )
 
         except Exception:
@@ -220,7 +210,7 @@ class VulnDBClient:
 
         return None
 
-    async def _query_nvd_by_version(self, product: str, version: str) -> List[CVEInfo]:
+    async def _query_nvd_by_version(self, product: str, version: str) -> list[CVEInfo]:
         """Query NVD for CVEs affecting a product version."""
         cves = []
 
@@ -250,9 +240,7 @@ class VulnDBClient:
                         severity=cvss.get("baseSeverity", "UNKNOWN"),
                         cvss_score=cvss.get("baseScore", 0.0),
                         published_date=cve.get("published", ""),
-                        references=[
-                            ref.get("url", "") for ref in cve.get("references", [])
-                        ],
+                        references=[ref.get("url", "") for ref in cve.get("references", [])],
                     )
                     cves.append(cve_info)
 
@@ -261,7 +249,7 @@ class VulnDBClient:
 
         return cves
 
-    def cache_exploits(self, service: str, exploits: List[ExploitInfo]) -> None:
+    def cache_exploits(self, service: str, exploits: list[ExploitInfo]) -> None:
         """Cache exploit results locally."""
         cache_file = self.cache_dir / f"{service.replace(' ', '_')}.json"
 
@@ -279,7 +267,7 @@ class VulnDBClient:
         with open(cache_file, "w") as f:
             json.dump(data, f, indent=2)
 
-    def get_cached_exploits(self, service: str) -> List[ExploitInfo]:
+    def get_cached_exploits(self, service: str) -> list[ExploitInfo]:
         """Get cached exploits for a service."""
         cache_file = self.cache_dir / f"{service.replace(' ', '_')}.json"
 
@@ -308,12 +296,12 @@ class VulnDBClient:
 class VulnDB:
     """High-level vulnerability database interface."""
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Path | None = None):
         self.client = VulnDBClient(cache_dir)
 
     async def research_service(
-        self, service_name: str, version: str, project_dir: Optional[Path] = None
-    ) -> Dict[str, Any]:
+        self, service_name: str, version: str, project_dir: Path | None = None
+    ) -> dict[str, Any]:
         """
         Research a service for vulnerabilities.
 
@@ -360,7 +348,7 @@ class VulnDB:
             "from_cache": False,
         }
 
-    def print_research_summary(self, results: Dict[str, Any]) -> None:
+    def print_research_summary(self, results: dict[str, Any]) -> None:
         """Print a summary of vulnerability research."""
         service = results.get("service", "Unknown")
         version = results.get("version", "")
@@ -399,7 +387,7 @@ class VulnDB:
 
 
 # Convenience function
-async def quick_research(service: str, version: str) -> Dict[str, Any]:
+async def quick_research(service: str, version: str) -> dict[str, Any]:
     """Quick vulnerability research for a service."""
     vulndb = VulnDB()
     return await vulndb.research_service(service, version)

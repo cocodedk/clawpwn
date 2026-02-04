@@ -2,12 +2,9 @@
 
 import asyncio
 import json
-import os
-import subprocess
 import shutil
 import time
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
 
 
 @dataclass
@@ -25,7 +22,7 @@ class HostResult:
     """Represents a single host scan result."""
 
     ip: str
-    ports: List[PortScanResult] = field(default_factory=list)
+    ports: list[PortScanResult] = field(default_factory=list)
 
 
 class MasscanScanner:
@@ -46,10 +43,10 @@ class MasscanScanner:
         target: str,
         ports: str,
         rate: int = 10000,
-        interface: Optional[str] = None,
+        interface: str | None = None,
         sudo: bool = False,
         verbose: bool = False,
-    ) -> List[HostResult]:
+    ) -> list[HostResult]:
         """
         Scan a target host with masscan.
 
@@ -120,7 +117,7 @@ class MasscanScanner:
         return results
 
     @staticmethod
-    def _parse_masscan_json(output: str) -> List[HostResult]:
+    def _parse_masscan_json(output: str) -> list[HostResult]:
         """Parse masscan JSON output into HostResult objects."""
         data = output.strip()
         if not data:
@@ -139,7 +136,7 @@ class MasscanScanner:
         except json.JSONDecodeError:
             return []
 
-        hosts: Dict[str, HostResult] = {}
+        hosts: dict[str, HostResult] = {}
 
         for item in items:
             ip = item.get("ip")

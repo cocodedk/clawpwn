@@ -5,12 +5,12 @@ Allows users to interact with the tool using natural language commands.
 
 import re
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any
 
 from clawpwn.ai.llm import LLMClient
 from clawpwn.ai.orchestrator import AIOrchestrator
-from clawpwn.modules.session import SessionManager
 from clawpwn.config import get_project_db_path
+from clawpwn.modules.session import SessionManager
 
 
 class NaturalLanguageInterface:
@@ -20,9 +20,9 @@ class NaturalLanguageInterface:
         self.project_dir = project_dir
         self.llm = LLMClient()
         self.orchestrator = AIOrchestrator(project_dir, self.llm)
-        self.context: Dict[str, Any] = {}
+        self.context: dict[str, Any] = {}
 
-    def process_command(self, command: str) -> Dict[str, Any]:
+    def process_command(self, command: str) -> dict[str, Any]:
         """
         Process a natural language command.
 
@@ -60,7 +60,7 @@ CONFIDENCE: <high|medium|low>"""
                 "action": "error",
             }
 
-    def _parse_intent_response(self, response: str) -> Dict[str, str]:
+    def _parse_intent_response(self, response: str) -> dict[str, str]:
         """Parse the LLM intent classification response."""
         result = {
             "intent": "unknown",
@@ -81,9 +81,7 @@ CONFIDENCE: <high|medium|low>"""
 
         return result
 
-    def _execute_intent(
-        self, parsed: Dict[str, str], original_command: str
-    ) -> Dict[str, Any]:
+    def _execute_intent(self, parsed: dict[str, str], original_command: str) -> dict[str, Any]:
         """Execute the parsed intent."""
         intent = parsed.get("intent", "unknown")
         target = parsed.get("target", "")
@@ -103,9 +101,7 @@ CONFIDENCE: <high|medium|low>"""
         handler = handlers.get(intent, self._handle_unknown)
         return handler(target, parsed, original_command)
 
-    def _handle_scan(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+    def _handle_scan(self, target: str, parsed: dict[str, str], command: str) -> dict[str, Any]:
         """Handle scan intent."""
         import asyncio
 
@@ -153,9 +149,7 @@ CONFIDENCE: <high|medium|low>"""
                 "action": "scan",
             }
 
-    def _handle_exploit(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+    def _handle_exploit(self, target: str, parsed: dict[str, str], command: str) -> dict[str, Any]:
         """Handle exploit intent."""
         return {
             "success": False,
@@ -164,9 +158,7 @@ CONFIDENCE: <high|medium|low>"""
             "needs_approval": True,
         }
 
-    def _handle_status(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+    def _handle_status(self, target: str, parsed: dict[str, str], command: str) -> dict[str, Any]:
         """Handle status check intent."""
         db_path = get_project_db_path(self.project_dir)
         if db_path is None:
@@ -181,19 +173,19 @@ CONFIDENCE: <high|medium|low>"""
                 "action": "status",
             }
 
-        response = f"Current Status:\n"
+        response = "Current Status:\n"
         response += f"  Target: {state.target or 'Not set'}\n"
         response += f"  Phase: {state.current_phase}\n"
         response += f"  Findings: {state.findings_count} ({state.critical_count} critical, {state.high_count} high)\n"
 
         if state.findings_count > 0:
-            response += f"\nUse 'clawpwn status' to see detailed findings."
+            response += "\nUse 'clawpwn status' to see detailed findings."
 
         return {"success": True, "response": response, "action": "status"}
 
     def _handle_set_target(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+        self, target: str, parsed: dict[str, str], command: str
+    ) -> dict[str, Any]:
         """Handle set target intent."""
         url = target or self._extract_url(command)
 
@@ -217,9 +209,7 @@ CONFIDENCE: <high|medium|low>"""
             "action": "set_target",
         }
 
-    def _handle_help(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+    def _handle_help(self, target: str, parsed: dict[str, str], command: str) -> dict[str, Any]:
         """Handle help intent."""
         help_text = """Available Commands:
 
@@ -254,9 +244,7 @@ General:
 
         return {"success": True, "response": help_text, "action": "help"}
 
-    def _handle_discover(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+    def _handle_discover(self, target: str, parsed: dict[str, str], command: str) -> dict[str, Any]:
         """Handle network discovery intent."""
         import asyncio
 
@@ -292,14 +280,12 @@ General:
             }
 
     def _handle_find_vulns(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+        self, target: str, parsed: dict[str, str], command: str
+    ) -> dict[str, Any]:
         """Handle vulnerability finding intent."""
         return self._handle_scan(target, parsed, command)
 
-    def _handle_research(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+    def _handle_research(self, target: str, parsed: dict[str, str], command: str) -> dict[str, Any]:
         """Handle research intent."""
         import asyncio
 
@@ -319,9 +305,7 @@ General:
         try:
             vulndb = VulnDB()
             results = asyncio.run(
-                vulndb.research_service(
-                    service_info["service"], service_info.get("version", "")
-                )
+                vulndb.research_service(service_info["service"], service_info.get("version", ""))
             )
 
             cves = results.get("cves", [])
@@ -340,9 +324,7 @@ General:
                 "action": "research",
             }
 
-    def _handle_unknown(
-        self, target: str, parsed: Dict[str, str], command: str
-    ) -> Dict[str, Any]:
+    def _handle_unknown(self, target: str, parsed: dict[str, str], command: str) -> dict[str, Any]:
         """Handle unknown commands with LLM."""
         system_prompt = "You are ClawPwn, an AI-powered penetration testing tool. The user gave a command you don't recognize. Provide a helpful response suggesting what they might want to do. Be concise."
 
@@ -357,19 +339,19 @@ General:
             }
 
     # Helper methods
-    def _extract_url(self, text: str) -> Optional[str]:
+    def _extract_url(self, text: str) -> str | None:
         """Extract URL from text."""
         url_pattern = r'https?://[^\s<>"\']+|www\.[^\s<>"\']+\.[^\s<>"\']+'
         match = re.search(url_pattern, text)
         return match.group(0) if match else None
 
-    def _extract_network(self, text: str) -> Optional[str]:
+    def _extract_network(self, text: str) -> str | None:
         """Extract network range from text."""
         network_pattern = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}"
         match = re.search(network_pattern, text)
         return match.group(0) if match else None
 
-    def _extract_service_info(self, text: str) -> Dict[str, str]:
+    def _extract_service_info(self, text: str) -> dict[str, str]:
         """Extract service name and version from text."""
         # Pattern: "service X version Y" or "X Y"
         patterns = [
@@ -404,7 +386,7 @@ General:
 
         return {"service": "", "version": ""}
 
-    def _get_current_target(self) -> Optional[str]:
+    def _get_current_target(self) -> str | None:
         """Get current target from project state."""
         try:
             db_path = get_project_db_path(self.project_dir)
@@ -418,7 +400,7 @@ General:
 
 
 # Convenience function
-def process_nl_command(command: str, project_dir: Path) -> Dict[str, Any]:
+def process_nl_command(command: str, project_dir: Path) -> dict[str, Any]:
     """Process a natural language command."""
     nli = NaturalLanguageInterface(project_dir)
     return nli.process_command(command)
