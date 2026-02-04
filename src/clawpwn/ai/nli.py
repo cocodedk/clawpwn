@@ -18,7 +18,7 @@ class NaturalLanguageInterface:
 
     def __init__(self, project_dir: Path):
         self.project_dir = project_dir
-        self.llm = LLMClient()
+        self.llm = LLMClient(project_dir=project_dir)
         self.orchestrator = AIOrchestrator(project_dir, self.llm)
         self.context: dict[str, Any] = {}
 

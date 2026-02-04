@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -22,6 +23,27 @@ def _is_root() -> bool:
         return os.geteuid() == 0
     except (AttributeError, OSError):
         return False
+
+
+def _can_sudo_without_password(binary: str) -> bool:
+    """Check if we can run a binary with sudo without password prompt."""
+    bin_path = shutil.which(binary)
+    if not bin_path:
+        return False
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", bin_path, "--version"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def _needs_sudo(binary: str) -> bool:
+    """Check if we need sudo to run privileged scans."""
+    return not _is_root() and _can_sudo_without_password(binary)
 
 
 @dataclass
@@ -84,7 +106,12 @@ class NmapScanner:
             os_detection: Attempt OS detection (requires root)
             script_scan: Run default NSE scripts
         """
-        cmd = ["nmap", target, "-oX", "-"]  # Output as XML to stdout
+        # Check if we need sudo for privileged scans
+        needs_priv = udp or os_detection
+        use_sudo = needs_priv and not _is_root() and _can_sudo_without_password("nmap")
+
+        cmd = ["sudo", "nmap"] if use_sudo else ["nmap"]
+        cmd.extend([target, "-oX", "-"])  # Output as XML to stdout
 
         if ports:
             cmd.extend(["-p", ports])
@@ -98,8 +125,8 @@ class NmapScanner:
             cmd.extend(["-sT", "-Pn"])
         elif udp:
             cmd.extend(["-sU", "-Pn"])
-        # Use unprivileged scan settings when not running as root
-        elif not _is_root():
+        # Use unprivileged scan settings when not running as root and no sudo
+        elif not _is_root() and not use_sudo:
             cmd.extend(["-sT", "-Pn", "--unprivileged"])
 
         if version_detection:
@@ -190,7 +217,9 @@ class NmapScanner:
         Args:
             network: Network range (e.g., "192.168.1.0/24")
         """
-        cmd = ["nmap", "-sn", "-oX", "-", network]
+        use_sudo = not _is_root() and _can_sudo_without_password("nmap")
+        cmd = ["sudo", "nmap"] if use_sudo else ["nmap"]
+        cmd.extend(["-sn", "-oX", "-", network])
 
         process = await asyncio.create_subprocess_exec(
             *cmd,

@@ -80,7 +80,7 @@ class AIOrchestrator:
         self.db_path = db_path
         self.session = SessionManager(self.db_path)
         self._llm_owned = llm_client is None
-        self.llm = llm_client or LLMClient()
+        self.llm = llm_client or LLMClient(project_dir=project_dir)
 
         # Initialize modules
         self.scanner = Scanner(project_dir)

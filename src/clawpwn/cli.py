@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from clawpwn.ai.orchestrator import AIOrchestrator
-from clawpwn.config import get_project_db_path, get_project_env_path
+from clawpwn.config import get_project_db_path, get_project_env_path, is_global_config_dir
 from clawpwn.db.init import init_db
 from clawpwn.modules.network import NetworkDiscovery, ServiceInfo
 from clawpwn.modules.scanner import ScanConfig, Scanner
@@ -68,6 +68,13 @@ def get_project_dir() -> Path | None:
     while current != current.parent:
         marker = current / ".clawpwn"
         if marker.exists():
+            if (
+                marker.is_dir()
+                and is_global_config_dir(marker)
+                and not (marker / "clawpwn.db").exists()
+            ):
+                current = current.parent
+                continue
             return current
         current = current.parent
     return None
@@ -77,6 +84,15 @@ def require_project() -> Path:
     """Ensure we're in a clawpwn project directory."""
     project_dir = get_project_dir()
     if not project_dir:
+        home_marker = Path.home() / ".clawpwn"
+        if (
+            home_marker.is_dir()
+            and is_global_config_dir(home_marker)
+            and not (home_marker / "clawpwn.db").exists()
+        ):
+            console.print(
+                "[yellow]Note:[/yellow] ~/.clawpwn is a global config folder, not a project marker."
+            )
         console.print("[red]Error: Not in a clawpwn project. Run 'clawpwn init' first.[/red]")
         raise typer.Exit(1)
     return project_dir
@@ -336,8 +352,8 @@ def scan(
         full_scan = depth == "deep"
 
         if not has_scheme:
-            ports_tcp = os.environ.get("CLAWPWN_MASSCAN_PORTS_TCP", "0-65535")
-            ports_udp = os.environ.get("CLAWPWN_MASSCAN_PORTS_UDP", "0-65535")
+            ports_tcp = os.environ.get("CLAWPWN_MASSCAN_PORTS_TCP", "1-65535")
+            ports_udp = os.environ.get("CLAWPWN_MASSCAN_PORTS_UDP", "1-65535")
             host_info = await network.scan_host(
                 host_target,
                 scan_type="deep",

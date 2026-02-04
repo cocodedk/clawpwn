@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import time
 from dataclasses import dataclass, field
 
@@ -17,6 +18,26 @@ def _parse_float_env(name: str, default: float | None = 3600.0) -> float | None:
         return float(val)
     except ValueError:
         return default
+
+
+def _is_root() -> bool:
+    """Check if running as root."""
+    return os.geteuid() == 0
+
+
+def _can_sudo_without_password(binary_path: str) -> bool:
+    """Check if we can run a binary with sudo without password prompt."""
+    if not binary_path or not os.path.isfile(binary_path):
+        return False
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", binary_path, "--help"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
 
 
 @dataclass
@@ -68,23 +89,26 @@ class MasscanScanner:
             ports: Port range (e.g., "80,443" or "1-1000")
             rate: Packets per second
             interface: Network interface (optional)
+            sudo: Use sudo (auto-detected if not specified)
         """
-        cmd = [
-            self.binary,
-            target,
-            "--ports",
-            ports,
-            "--rate",
-            str(rate),
-            "-oJ",
-            "-",
-        ]
+        # Auto-detect if we need and can use sudo
+        use_sudo = sudo or (not _is_root() and _can_sudo_without_password(self.binary))
+
+        cmd = ["sudo", self.binary] if use_sudo else [self.binary]
+        cmd.extend(
+            [
+                target,
+                "--ports",
+                ports,
+                "--rate",
+                str(rate),
+                "-oJ",
+                "-",
+            ]
+        )
 
         if interface:
             cmd.extend(["-e", interface])
-
-        if sudo:
-            cmd = ["sudo"] + cmd
 
         if verbose:
             print(f"[verbose] Masscan command: {' '.join(cmd)}")

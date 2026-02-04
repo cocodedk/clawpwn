@@ -4,7 +4,9 @@ import asyncio
 import os
 import re
 import shutil
+import subprocess
 import time
+from pathlib import Path
 
 from clawpwn.tools.masscan import HostResult, PortScanResult
 
@@ -20,6 +22,26 @@ def _parse_float_env(name: str, default: float | None = 3600.0) -> float | None:
         return default
 
 
+def _is_root() -> bool:
+    """Check if running as root."""
+    return os.geteuid() == 0
+
+
+def _can_sudo_without_password(binary_path: str) -> bool:
+    """Check if we can run a binary with sudo without password prompt."""
+    if not binary_path or not os.path.isfile(binary_path):
+        return False
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", binary_path, "--help"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
 class RustScanScanner:
     """Wrapper for rustscan subprocess calls."""
 
@@ -27,7 +49,11 @@ class RustScanScanner:
         self.binary = self._check_rustscan()
 
     def _check_rustscan(self) -> str:
-        """Verify rustscan is installed."""
+        """Verify rustscan is installed, preferring cargo-installed binary."""
+        # Prefer cargo-installed rustscan (can have setcap, snap cannot)
+        cargo_path = Path.home() / ".cargo" / "bin" / "rustscan"
+        if cargo_path.is_file() and os.access(cargo_path, os.X_OK):
+            return str(cargo_path)
         path = shutil.which("rustscan")
         if not path:
             raise RuntimeError("rustscan is not installed. Please install rustscan first.")
@@ -52,19 +78,29 @@ class RustScanScanner:
             timeout_ms: Timeout per port in milliseconds
             verbose: Print verbose output
         """
-        # -q/--quiet: output only ports, do not run nmap
-        # -p: port range, -b: batch size, -T: timeout ms
-        cmd = [
-            self.binary,
-            "-p",
-            ports,
-            "-b",
-            str(batch_size),
-            "-T",
-            str(timeout_ms),
-            "-q",
-            target,
-        ]
+        # Check if we need sudo
+        use_sudo = not _is_root() and _can_sudo_without_password(self.binary)
+
+        # -r: port range (e.g., 1-1000), -p: comma-separated ports (e.g., 80,443)
+        # -b: batch size, -t: timeout ms, -g: greppable output
+        cmd = ["sudo", self.binary] if use_sudo else [self.binary]
+        cmd.extend(
+            [
+                "-b",
+                str(batch_size),
+                "-t",
+                str(timeout_ms),
+                "-g",  # greppable output (ports only)
+                "-a",
+                target,
+            ]
+        )
+
+        # Use -r for ranges (contains dash, no comma), -p for comma-separated
+        if "-" in ports and "," not in ports:
+            cmd.extend(["-r", ports])
+        else:
+            cmd.extend(["-p", ports])
 
         if verbose:
             print(f"[verbose] RustScan command: {' '.join(cmd)}")

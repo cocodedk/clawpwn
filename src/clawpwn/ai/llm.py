@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from clawpwn.config import (
+    ensure_project_env,
     get_api_key,
     get_llm_base_url,
     get_llm_model,
@@ -25,6 +26,7 @@ class LLMClient:
         model: str | None = None,
         project_dir: Path | None = None,
     ):
+        self._provider_explicit = provider is not None
         self.provider = (provider or get_llm_provider(project_dir)).lower()
         self.project_dir = project_dir
 
@@ -71,6 +73,12 @@ class LLMClient:
     def _get_api_key_with_fallback(self) -> str:
         """Get API key from multiple sources with helpful error messages."""
         api_key = get_api_key(self.provider, self.project_dir)
+
+        if not api_key and self.project_dir:
+            ensure_project_env(self.project_dir)
+            if not self._provider_explicit:
+                self.provider = get_llm_provider(self.project_dir).lower()
+            api_key = get_api_key(self.provider, self.project_dir)
 
         if not api_key:
             # Create helpful error message with setup instructions

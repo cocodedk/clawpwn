@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from clawpwn.db.init import init_db
 from clawpwn.db.models import Finding, Log, Project, ProjectState
 
 
@@ -14,6 +15,8 @@ class SessionManager:
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
+        # Ensure schema exists; idempotent and safe to call on every startup.
+        init_db(self.db_path)
         self.engine = create_engine(f"sqlite:///{db_path}", echo=False)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()

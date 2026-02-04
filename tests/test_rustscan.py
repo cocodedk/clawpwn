@@ -122,5 +122,7 @@ async def test_rustscan_scan_host_requires_binary(monkeypatch):
         "shutil.which",
         lambda _: None,
     )
+    # Also mock cargo path check (Path.is_file returns False)
+    monkeypatch.setattr("pathlib.Path.is_file", lambda self: False)
     with pytest.raises(RuntimeError, match="rustscan is not installed"):
         RustScanScanner()

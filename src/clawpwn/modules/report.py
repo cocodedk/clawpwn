@@ -41,7 +41,7 @@ class ReportGenerator:
         self.db_path = db_path
         self.session = SessionManager(self.db_path)
         self._llm_owned = llm_client is None
-        self.llm = llm_client or LLMClient()
+        self.llm = llm_client or LLMClient(project_dir=project_dir)
         self.report_dir = project_dir / "report"
         self.report_dir.mkdir(exist_ok=True)
 
