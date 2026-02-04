@@ -55,6 +55,8 @@ class NmapScanner:
         version_detection: bool = True,
         os_detection: bool = False,
         script_scan: bool = False,
+        tcp_connect: bool = False,
+        udp: bool = False,
         verbose: bool = False,
     ) -> List[HostResult]:
         """
@@ -78,8 +80,12 @@ class NmapScanner:
         else:
             cmd.append("-T2")
 
+        if tcp_connect:
+            cmd.extend(["-sT", "-Pn"])
+        elif udp:
+            cmd.extend(["-sU", "-Pn"])
         # Use unprivileged scan settings when not running as root
-        if os.geteuid() != 0:
+        elif os.geteuid() != 0:
             cmd.extend(["-sT", "-Pn", "--unprivileged"])
 
         if version_detection:
@@ -130,6 +136,36 @@ class NmapScanner:
             aggressive=True,
             version_detection=True,
             script_scan=True,
+            verbose=verbose,
+        )
+
+    async def scan_host_tcp_connect(
+        self,
+        target: str,
+        ports: str,
+        version_detection: bool = True,
+        verbose: bool = False,
+    ) -> List[HostResult]:
+        """TCP connect scan for specific ports."""
+        return await self.scan_host(
+            target,
+            ports=ports,
+            aggressive=True,
+            version_detection=version_detection,
+            tcp_connect=True,
+            verbose=verbose,
+        )
+
+    async def scan_host_udp(
+        self, target: str, ports: str, verbose: bool = False
+    ) -> List[HostResult]:
+        """UDP scan for specific ports."""
+        return await self.scan_host(
+            target,
+            ports=ports,
+            aggressive=False,
+            version_detection=False,
+            udp=True,
             verbose=verbose,
         )
 

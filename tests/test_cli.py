@@ -160,6 +160,7 @@ def test_scan_skips_web_for_raw_ip(monkeypatch, temp_dir: Path, capsys):
 
     out = capsys.readouterr().out
     assert "No URL scheme detected" in out
+    assert "Web scan skipped" in out
 
 
 def test_scan_verbose_flag_enables_nmap_verbose(monkeypatch, temp_dir: Path):

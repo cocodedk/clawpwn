@@ -305,12 +305,26 @@ def scan(
         scan_type = "quick" if depth == "quick" else "normal"
         full_scan = depth == "deep"
 
-        host_info = await network.scan_host(
-            host_target,
-            scan_type=scan_type,
-            full_scan=full_scan,
-            verbose=verbose,
-        )
+        if not has_scheme:
+            ports_tcp = os.environ.get("CLAWPWN_MASSCAN_PORTS_TCP", "0-65535")
+            ports_udp = os.environ.get("CLAWPWN_MASSCAN_PORTS_UDP", "0-65535")
+            host_info = await network.scan_host(
+                host_target,
+                scan_type="deep",
+                full_scan=True,
+                verbose=verbose,
+                include_udp=True,
+                verify_tcp=True,
+                ports_tcp=ports_tcp,
+                ports_udp=ports_udp,
+            )
+        else:
+            host_info = await network.scan_host(
+                host_target,
+                scan_type=scan_type,
+                full_scan=full_scan,
+                verbose=verbose,
+            )
 
         if verbose:
             elapsed = time.perf_counter() - scan_started
@@ -383,8 +397,49 @@ Provide the next safe, authorized, low-risk enumeration steps. Do not exploit. F
                 f"[yellow]AI guidance unavailable: {e}. Configure CLAWPWN_LLM_PROVIDER and CLAWPWN_LLM_API_KEY to enable recommendations.[/yellow]"
             )
 
+        # Vulnerability lookup (non-exploit)
+        lookup_enabled = os.environ.get("CLAWPWN_VULN_LOOKUP", "true").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if lookup_enabled and host_info.services:
+            console.print("[*] Phase 3: Vulnerability Lookup")
+            max_results = int(os.environ.get("CLAWPWN_VULN_MAX_RESULTS", "3"))
+            try:
+                from clawpwn.modules.vulndb import VulnDBClient
+
+                vulndb = VulnDBClient()
+
+                async def lookup_service(service_name: str, version: str) -> str:
+                    try:
+                        exploits = await vulndb.find_exploits(service_name, version)
+                        if not exploits:
+                            return f"- {service_name} {version}: no known exploits found"
+                        top = exploits[:max_results]
+                        titles = "; ".join(e.title for e in top)
+                        return f"- {service_name} {version}: {titles}"
+                    except Exception as e:
+                        return f"- {service_name} {version}: lookup failed ({e})"
+
+                unique = {}
+                for s in host_info.services:
+                    if not s.name:
+                        continue
+                    key = f"{s.name}:{s.version}"
+                    if key not in unique:
+                        unique[key] = (s.name, s.version)
+
+                results = await asyncio.gather(
+                    *[lookup_service(n, v) for n, v in unique.values()]
+                )
+                console.print("\n" + "\n".join(results))
+            except Exception as e:
+                console.print(f"[yellow]Vulnerability lookup failed: {e}[/yellow]")
+
         console.print(
-            "[yellow]No URL scheme detected. Skipping web scan and finishing after network discovery.[/yellow]"
+            "[yellow]No URL scheme detected. Web scan skipped; network discovery and enumeration completed.[/yellow]"
         )
         return []
 

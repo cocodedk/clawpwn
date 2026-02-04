@@ -236,6 +236,14 @@ def create_project_config_template(project_dir: Path) -> Path:
 # CLAWPWN_MASSCAN_PORTS_QUICK=1-1024
 # CLAWPWN_MASSCAN_PORTS_NORMAL=1-10000
 # CLAWPWN_MASSCAN_PORTS_DEEP=1-65535
+# CLAWPWN_MASSCAN_PORTS_TCP=0-65535
+# CLAWPWN_MASSCAN_PORTS_UDP=0-65535
+# CLAWPWN_MASSCAN_INTERFACE=eth0
+# CLAWPWN_MASSCAN_SUDO=true
+
+# Vulnerability lookup (service-name + version)
+# CLAWPWN_VULN_LOOKUP=true
+# CLAWPWN_VULN_MAX_RESULTS=3
 
 # Backward-compatible provider-specific keys (optional)
 # ANTHROPIC_API_KEY=your-api-key-here

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from clawpwn.tools.masscan import MasscanScanner, HostResult, PortScanResult
+from clawpwn.tools.nmap import NmapScanner
 from clawpwn.modules.session import SessionManager
 from clawpwn.config import get_project_db_path
 
@@ -41,6 +42,7 @@ class NetworkDiscovery:
 
     def __init__(self, project_dir: Optional[Path] = None):
         self.scanner: Optional[MasscanScanner] = None
+        self.nmap: Optional[NmapScanner] = None
         self.project_dir = project_dir
         self.session: Optional[SessionManager] = None
 
@@ -60,7 +62,9 @@ class NetworkDiscovery:
             List of live IP addresses
         """
         print(f"[*] Discovering hosts on {network}...")
-        hosts = await self.scanner.ping_sweep(network)
+        if self.nmap is None:
+            self.nmap = NmapScanner()
+        hosts = await self.nmap.ping_sweep(network)
         print(f"[+] Found {len(hosts)} live hosts")
         return hosts
 
@@ -70,6 +74,10 @@ class NetworkDiscovery:
         scan_type: str = "quick",
         full_scan: bool = False,
         verbose: bool = False,
+        include_udp: bool = False,
+        verify_tcp: bool = False,
+        ports_tcp: Optional[str] = None,
+        ports_udp: Optional[str] = None,
     ) -> HostInfo:
         """
         Scan a single host for open ports and services.
@@ -84,39 +92,117 @@ class NetworkDiscovery:
         if self.scanner is None:
             self.scanner = MasscanScanner()
 
-        ports = self._ports_for_scan(scan_type, full_scan)
+        ports = ports_tcp or self._ports_for_scan(scan_type, full_scan)
         rate = self._rate_for_scan()
+        interface = os.environ.get("CLAWPWN_MASSCAN_INTERFACE")
+        sudo_env = os.environ.get("CLAWPWN_MASSCAN_SUDO")
+        if sudo_env is None:
+            sudo = os.geteuid() != 0
+        else:
+            sudo = sudo_env.lower() in {"1", "true", "yes", "on"}
+        print("[*] Stealth scan (masscan)")
         results = await self.scanner.scan_host(
-            target, ports=ports, rate=rate, verbose=verbose
+            target,
+            ports=ports,
+            rate=rate,
+            interface=interface,
+            sudo=sudo,
+            verbose=verbose,
         )
-
-        if not results:
-            return HostInfo(ip=target, notes="No response from host")
-
-        host_result = results[0]
 
         # Convert to HostInfo
         host_info = HostInfo(
-            ip=host_result.ip,
+            ip=target,
             hostname="",
             os="",
         )
 
-        # Process ports
-        for port in host_result.ports:
-            if port.state == "open":
-                host_info.open_ports.append(port.port)
+        host_result = results[0] if results else None
+        if not host_result:
+            host_info.notes = "No response from masscan"
 
-                service_name = self._guess_service(port.port)
-                service = ServiceInfo(
-                    port=port.port,
-                    protocol=port.protocol,
-                    name=service_name,
-                    version="",
-                    product="",
-                    banner=service_name,
+        # Process ports (masscan TCP)
+        if host_result:
+            for port in host_result.ports:
+                if port.state == "open":
+                    host_info.open_ports.append(port.port)
+
+                    service_name = self._guess_service(port.port)
+                    service = ServiceInfo(
+                        port=port.port,
+                        protocol=port.protocol,
+                        name=service_name,
+                        version="",
+                        product="",
+                        banner=service_name,
+                    )
+                    host_info.services.append(service)
+
+        # Ordinary TCP scan (connect + service detection)
+        if verify_tcp:
+            if self.nmap is None:
+                self.nmap = NmapScanner()
+            if host_info.open_ports:
+                tcp_ports = ",".join(str(p) for p in sorted(set(host_info.open_ports)))
+                print("[*] TCP connect scan (nmap) on open ports")
+            else:
+                tcp_ports = ports
+                host_info.notes = (
+                    host_info.notes + "; TCP connect scan fallback"
+                    if host_info.notes
+                    else "TCP connect scan fallback"
                 )
-                host_info.services.append(service)
+                print("[*] TCP connect scan (nmap) on full port range")
+            tcp_results = await self.nmap.scan_host_tcp_connect(
+                target, ports=tcp_ports, version_detection=True, verbose=verbose
+            )
+            if tcp_results:
+                tcp_host = tcp_results[0]
+                # Replace services with detected ones
+                host_info.services = []
+                host_info.open_ports = []
+                for port in tcp_host.ports:
+                    if port.state != "open":
+                        continue
+                    host_info.services.append(
+                        ServiceInfo(
+                            port=port.port,
+                            protocol=port.protocol,
+                            name=port.service,
+                            version=port.version,
+                            product=port.product,
+                            banner=f"{port.product} {port.version}".strip(),
+                        )
+                    )
+                    host_info.open_ports.append(port.port)
+
+        # UDP scan (optional)
+        if include_udp:
+            if self.nmap is None:
+                self.nmap = NmapScanner()
+            udp_ports = ports_udp or os.environ.get("CLAWPWN_MASSCAN_PORTS_UDP", "0-65535")
+            print("[*] UDP scan (nmap)")
+            udp_results = await self.nmap.scan_host_udp(
+                target, ports=udp_ports, verbose=verbose
+            )
+            if udp_results:
+                udp_host = udp_results[0]
+                for port in udp_host.ports:
+                    if port.state != "open":
+                        continue
+                    host_info.open_ports.append(port.port)
+                    host_info.services.append(
+                        ServiceInfo(
+                            port=port.port,
+                            protocol=port.protocol,
+                            name=port.service or "udp",
+                            version=port.version,
+                            product=port.product,
+                            banner=f"{port.product} {port.version}".strip(),
+                        )
+                    )
+
+        host_info.open_ports = sorted(set(host_info.open_ports))
 
         # Log the discovery
         if self.session:

@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import subprocess
+import shutil
 import time
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
@@ -31,14 +32,14 @@ class MasscanScanner:
     """Wrapper for masscan subprocess calls."""
 
     def __init__(self):
-        self._check_masscan()
+        self.binary = self._check_masscan()
 
-    def _check_masscan(self) -> None:
+    def _check_masscan(self) -> str:
         """Verify masscan is installed."""
-        try:
-            subprocess.run(["masscan", "--version"], capture_output=True, check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        path = shutil.which("masscan")
+        if not path:
             raise RuntimeError("masscan is not installed. Please install masscan first.")
+        return path
 
     async def scan_host(
         self,
@@ -46,6 +47,7 @@ class MasscanScanner:
         ports: str,
         rate: int = 10000,
         interface: Optional[str] = None,
+        sudo: bool = False,
         verbose: bool = False,
     ) -> List[HostResult]:
         """
@@ -58,9 +60,9 @@ class MasscanScanner:
             interface: Network interface (optional)
         """
         cmd = [
-            "masscan",
+            self.binary,
             target,
-            "-p",
+            "--ports",
             ports,
             "--rate",
             str(rate),
@@ -70,6 +72,9 @@ class MasscanScanner:
 
         if interface:
             cmd.extend(["-e", interface])
+
+        if sudo:
+            cmd = ["sudo"] + cmd
 
         if verbose:
             print(f"[verbose] Masscan command: {' '.join(cmd)}")
@@ -91,7 +96,28 @@ class MasscanScanner:
             error_msg = stderr.decode() if stderr else "Unknown error"
             raise RuntimeError(f"Masscan scan failed: {error_msg}")
 
-        return self._parse_masscan_json(stdout.decode())
+        stdout_text = stdout.decode()
+        stderr_text = stderr.decode() if stderr else ""
+        results = self._parse_masscan_json(stdout_text)
+
+        if verbose and stderr_text:
+            print(f"[verbose] Masscan stderr: {stderr_text.strip()}")
+
+        if not results and stderr_text:
+            lowered = stderr_text.lower()
+            keywords = [
+                "error",
+                "failed",
+                "permission",
+                "denied",
+                "cannot",
+                "could not",
+                "exiting",
+            ]
+            if any(k in lowered for k in keywords):
+                raise RuntimeError(f"Masscan scan failed: {stderr_text.strip()}")
+
+        return results
 
     @staticmethod
     def _parse_masscan_json(output: str) -> List[HostResult]:
