@@ -14,6 +14,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
 from clawpwn.modules.session import SessionManager
+from clawpwn.config import get_project_db_path
 from clawpwn.ai.llm import LLMClient
 
 
@@ -34,7 +35,10 @@ class ReportGenerator:
 
     def __init__(self, project_dir: Path, llm_client: Optional[LLMClient] = None):
         self.project_dir = project_dir
-        self.db_path = project_dir / ".clawpwn" / "clawpwn.db"
+        db_path = get_project_db_path(project_dir)
+        if db_path is None:
+            raise ValueError("Project storage not found. Run 'clawpwn init' first.")
+        self.db_path = db_path
         self.session = SessionManager(self.db_path)
         self.llm = llm_client or LLMClient()
         self.report_dir = project_dir / "report"

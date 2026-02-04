@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 
 from clawpwn.tools.masscan import MasscanScanner, HostResult, PortScanResult
 from clawpwn.modules.session import SessionManager
+from clawpwn.config import get_project_db_path
 
 
 @dataclass
@@ -44,8 +45,8 @@ class NetworkDiscovery:
         self.session: Optional[SessionManager] = None
 
         if project_dir:
-            db_path = project_dir / ".clawpwn" / "clawpwn.db"
-            if db_path.exists():
+            db_path = get_project_db_path(project_dir)
+            if db_path and db_path.exists():
                 self.session = SessionManager(db_path)
 
     async def discover_hosts(self, network: str) -> List[str]:

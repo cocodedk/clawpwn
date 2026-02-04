@@ -12,6 +12,7 @@ from clawpwn.config import (
     get_llm_provider,
     get_llm_model,
     get_llm_base_url,
+    get_project_env_path,
     create_project_config_template,
     create_global_config,
 )
@@ -59,6 +60,8 @@ class LLMClient:
                 "openrouter": "OPENROUTER_API_KEY",
             }.get(self.provider, f"{self.provider.upper()}_API_KEY")
 
+            env_path = get_project_env_path(self.project_dir) if self.project_dir else Path(".clawpwn/.env")
+
             error_msg = f"""API key not found for provider: {self.provider}
 
 To set your API key, choose one of these methods:
@@ -69,8 +72,8 @@ To set your API key, choose one of these methods:
    # or legacy: export {env_var}=your-api-key
 
 2. Project .env file (recommended per project):
-   echo "CLAWPWN_LLM_PROVIDER={self.provider}" >> .clawpwn/.env
-   echo "CLAWPWN_LLM_API_KEY=your-api-key" >> .clawpwn/.env
+   echo "CLAWPWN_LLM_PROVIDER={self.provider}" >> {env_path}
+   echo "CLAWPWN_LLM_API_KEY=your-api-key" >> {env_path}
 
 3. Global config file:
    echo "CLAWPWN_LLM_API_KEY: your-api-key" >> ~/.clawpwn/config.yml

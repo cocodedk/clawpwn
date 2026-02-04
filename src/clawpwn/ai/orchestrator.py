@@ -10,6 +10,7 @@ from clawpwn.ai.llm import LLMClient
 from clawpwn.modules.session import SessionManager
 from clawpwn.modules.scanner import Scanner, ScanConfig, ScanResult
 from clawpwn.modules.network import NetworkDiscovery
+from clawpwn.config import get_project_db_path
 from clawpwn.modules.vulndb import VulnDB
 from clawpwn.modules.exploit import ExploitManager, ExploitResult
 
@@ -73,7 +74,10 @@ class AIOrchestrator:
 
     def __init__(self, project_dir: Path, llm_client: Optional[LLMClient] = None):
         self.project_dir = project_dir
-        self.db_path = project_dir / ".clawpwn" / "clawpwn.db"
+        db_path = get_project_db_path(project_dir)
+        if db_path is None:
+            raise ValueError("Project storage not found. Run 'clawpwn init' first.")
+        self.db_path = db_path
         self.session = SessionManager(self.db_path)
         self.llm = llm_client or LLMClient()
 

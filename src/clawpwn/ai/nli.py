@@ -9,6 +9,8 @@ from typing import Optional, Dict, Any, List
 
 from clawpwn.ai.llm import LLMClient
 from clawpwn.ai.orchestrator import AIOrchestrator
+from clawpwn.modules.session import SessionManager
+from clawpwn.config import get_project_db_path
 
 
 class NaturalLanguageInterface:
@@ -166,9 +168,9 @@ CONFIDENCE: <high|medium|low>"""
         self, target: str, parsed: Dict[str, str], command: str
     ) -> Dict[str, Any]:
         """Handle status check intent."""
-        from clawpwn.modules.session import SessionManager
-
-        db_path = self.project_dir / ".clawpwn" / "clawpwn.db"
+        db_path = get_project_db_path(self.project_dir)
+        if db_path is None:
+            raise ValueError("Project storage not found. Run 'clawpwn init' first.")
         session = SessionManager(db_path)
         state = session.get_state()
 
@@ -203,9 +205,9 @@ CONFIDENCE: <high|medium|low>"""
                 "needs_input": True,
             }
 
-        from clawpwn.modules.session import SessionManager
-
-        db_path = self.project_dir / ".clawpwn" / "clawpwn.db"
+        db_path = get_project_db_path(self.project_dir)
+        if db_path is None:
+            raise ValueError("Project storage not found. Run 'clawpwn init' first.")
         session = SessionManager(db_path)
         session.set_target(url)
 
@@ -404,10 +406,10 @@ General:
 
     def _get_current_target(self) -> Optional[str]:
         """Get current target from project state."""
-        from clawpwn.modules.session import SessionManager
-
         try:
-            db_path = self.project_dir / ".clawpwn" / "clawpwn.db"
+            db_path = get_project_db_path(self.project_dir)
+            if db_path is None:
+                raise ValueError("Project storage not found. Run 'clawpwn init' first.")
             session = SessionManager(db_path)
             state = session.get_state()
             return state.target if state else None

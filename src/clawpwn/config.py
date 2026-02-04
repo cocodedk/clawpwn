@@ -8,6 +8,8 @@ Supports multiple configuration sources in order of priority:
 """
 
 import os
+import hashlib
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any
 import yaml
@@ -46,10 +48,86 @@ def load_project_config(project_dir: Optional[Path] = None) -> Dict[str, str]:
         project_dir = get_project_dir()
 
     if project_dir:
-        env_path = project_dir / ".clawpwn" / ".env"
-        return load_env_file(env_path)
+        env_path = get_project_env_path(project_dir)
+        if env_path:
+            return load_env_file(env_path)
 
     return {}
+
+
+def _storage_name(project_dir: Path) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", project_dir.name).strip("-") or "project"
+    digest = hashlib.sha1(str(project_dir).encode()).hexdigest()[:8]
+    return f"{slug}-{digest}"
+
+
+def get_project_storage_dir(project_dir: Optional[Path]) -> Optional[Path]:
+    """Resolve the storage directory for a project (.clawpwn or data dir)."""
+    if project_dir is None:
+        return None
+
+    marker = project_dir / ".clawpwn"
+    if marker.is_file():
+        try:
+            target = marker.read_text().strip()
+            if target:
+                return Path(target)
+        except Exception:
+            return None
+
+    if marker.is_dir():
+        return marker
+
+    data_root = os.environ.get("CLAWPWN_DATA_DIR")
+    if data_root:
+        return Path(data_root) / _storage_name(project_dir)
+
+    return marker
+
+
+def ensure_project_storage_dir(project_dir: Path) -> Path:
+    """Ensure the project storage directory exists and return it."""
+    marker = project_dir / ".clawpwn"
+    if marker.is_dir():
+        return marker
+
+    if marker.is_file():
+        target = marker.read_text().strip()
+        if not target:
+            raise ValueError("Project marker file is empty.")
+        storage = Path(target)
+        storage.mkdir(parents=True, exist_ok=True)
+        return storage
+
+    storage = get_project_storage_dir(project_dir)
+    if storage is None:
+        raise ValueError("Unable to resolve project storage directory.")
+
+    storage.mkdir(parents=True, exist_ok=True)
+
+    # If using a data dir, create marker file in project dir
+    if storage != marker:
+        marker.write_text(str(storage))
+    else:
+        marker.mkdir(exist_ok=True)
+
+    return storage
+
+
+def get_project_db_path(project_dir: Optional[Path]) -> Optional[Path]:
+    """Get the project database path."""
+    storage = get_project_storage_dir(project_dir)
+    if storage is None:
+        return None
+    return storage / "clawpwn.db"
+
+
+def get_project_env_path(project_dir: Optional[Path]) -> Optional[Path]:
+    """Get the project .env path."""
+    storage = get_project_storage_dir(project_dir)
+    if storage is None:
+        return None
+    return storage / ".env"
 
 
 def get_config(
@@ -134,7 +212,8 @@ def get_llm_base_url(project_dir: Optional[Path] = None) -> Optional[str]:
 
 def create_project_config_template(project_dir: Path) -> Path:
     """Create a .env template file in the project directory."""
-    env_path = project_dir / ".clawpwn" / ".env"
+    storage_dir = ensure_project_storage_dir(project_dir)
+    env_path = storage_dir / ".env"
 
     if not env_path.exists():
         template = """# ClawPwn LLM Configuration

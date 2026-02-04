@@ -10,6 +10,7 @@ from urllib.parse import urljoin, parse_qs, urlparse
 from clawpwn.tools.http import HTTPClient, HTTPResponse, check_headers
 from clawpwn.modules.session import SessionManager
 from clawpwn.db.models import Finding
+from clawpwn.config import get_project_db_path
 
 
 @dataclass
@@ -46,8 +47,8 @@ class PassiveScanner:
         self.session: Optional[SessionManager] = None
 
         if project_dir:
-            db_path = project_dir / ".clawpwn" / "clawpwn.db"
-            if db_path.exists():
+            db_path = get_project_db_path(project_dir)
+            if db_path and db_path.exists():
                 self.session = SessionManager(db_path)
 
     async def scan_response(self, response: HTTPResponse) -> List[ScanResult]:
@@ -221,8 +222,8 @@ class ActiveScanner:
         self.session: Optional[SessionManager] = None
 
         if project_dir:
-            db_path = project_dir / ".clawpwn" / "clawpwn.db"
-            if db_path.exists():
+            db_path = get_project_db_path(project_dir)
+            if db_path and db_path.exists():
                 self.session = SessionManager(db_path)
 
     async def scan_target(self, target: str, depth: str = "normal") -> List[ScanResult]:
@@ -562,8 +563,8 @@ class Scanner:
         self.session: Optional[SessionManager] = None
 
         if project_dir:
-            db_path = project_dir / ".clawpwn" / "clawpwn.db"
-            if db_path.exists():
+            db_path = get_project_db_path(project_dir)
+            if db_path and db_path.exists():
                 self.session = SessionManager(db_path)
 
     async def scan(

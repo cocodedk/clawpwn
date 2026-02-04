@@ -15,6 +15,7 @@ from rich.text import Text
 from clawpwn.db.init import init_db
 from clawpwn.db.models import ProjectState
 from clawpwn.modules.session import SessionManager
+from clawpwn.config import get_project_db_path, get_project_env_path
 from clawpwn.modules.scanner import Scanner, ScanConfig
 from clawpwn.modules.network import NetworkDiscovery
 from clawpwn.ai.orchestrator import AIOrchestrator
@@ -45,10 +46,11 @@ def version() -> None:
 
 
 def get_project_dir() -> Optional[Path]:
-    """Find the project directory by looking for .clawpwn folder."""
+    """Find the project directory by looking for a .clawpwn marker."""
     current = Path.cwd()
     while current != current.parent:
-        if (current / ".clawpwn").exists():
+        marker = current / ".clawpwn"
+        if marker.exists():
             return current
         current = current.parent
     return None
@@ -77,7 +79,6 @@ def init():
 
     # Create directory structure
     try:
-        clawpwn_dir.mkdir(exist_ok=True)
         (project_dir / "evidence").mkdir(exist_ok=True)
         (project_dir / "exploits").mkdir(exist_ok=True)
         (project_dir / "report").mkdir(exist_ok=True)
@@ -88,9 +89,12 @@ def init():
         )
         raise typer.Exit(1)
 
-    # Verify write access
+    # Verify write access and initialize storage
     try:
-        write_test = clawpwn_dir / ".write_test"
+        from clawpwn.config import ensure_project_storage_dir
+
+        storage_dir = ensure_project_storage_dir(project_dir)
+        write_test = storage_dir / ".write_test"
         write_test.write_text("ok")
         write_test.unlink()
     except PermissionError:
@@ -99,9 +103,12 @@ def init():
             "[dim]Choose a writable location (e.g., under your workspace or /tmp) and run 'clawpwn init' again.[/dim]"
         )
         raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error initializing project storage: {e}[/red]")
+        raise typer.Exit(1)
 
     # Initialize database
-    db_path = clawpwn_dir / "clawpwn.db"
+    db_path = storage_dir / "clawpwn.db"
     init_db(db_path)
 
     # Create initial project state
@@ -112,11 +119,19 @@ def init():
     from clawpwn.config import create_project_config_template
     env_path = create_project_config_template(project_dir)
 
+    if storage_dir == clawpwn_dir:
+        storage_text = "  .clawpwn/       - Config & database\n"
+    else:
+        storage_text = (
+            "  .clawpwn/       - Project marker\n"
+            f"  data/           - Config & database ({storage_dir})\n"
+        )
+
     console.print(
         Panel(
             f"[green]Initialized ClawPwn project at[/green]\n{project_dir}\n\n"
             f"[dim]Structure:[/dim]\n"
-            f"  .clawpwn/       - Config & database\n"
+            f"{storage_text}"
             f"  evidence/       - Screenshots, logs\n"
             f"  exploits/       - Downloaded exploits\n"
             f"  report/         - Generated reports\n\n"
@@ -138,7 +153,10 @@ def target(
 ):
     """Set the primary target for this project."""
     project_dir = require_project()
-    db_path = project_dir / ".clawpwn" / "clawpwn.db"
+    db_path = get_project_db_path(project_dir)
+    if db_path is None:
+        console.print("[red]Project storage not found. Run 'clawpwn init' first.[/red]")
+        raise typer.Exit(1)
 
     session = SessionManager(db_path)
     session.set_target(url)
@@ -150,7 +168,10 @@ def target(
 def status():
     """Show current project status and phase."""
     project_dir = require_project()
-    db_path = project_dir / ".clawpwn" / "clawpwn.db"
+    db_path = get_project_db_path(project_dir)
+    if db_path is None:
+        console.print("[red]Project storage not found. Run 'clawpwn init' first.[/red]")
+        raise typer.Exit(1)
 
     session = SessionManager(db_path)
     state = session.get_state()
@@ -200,8 +221,8 @@ def list_projects():
         try:
             for item in search_dir.iterdir():
                 if item.is_dir() and (item / ".clawpwn").exists():
-                    db_path = item / ".clawpwn" / "clawpwn.db"
-                    if db_path.exists():
+                    db_path = get_project_db_path(item)
+                    if db_path and db_path.exists():
                         try:
                             session = SessionManager(db_path)
                             state = session.get_state()
@@ -242,7 +263,10 @@ def scan(
     if not isinstance(verbose, bool):
         verbose = False
     project_dir = require_project()
-    db_path = project_dir / ".clawpwn" / "clawpwn.db"
+    db_path = get_project_db_path(project_dir)
+    if db_path is None:
+        console.print("[red]Project storage not found. Run 'clawpwn init' first.[/red]")
+        raise typer.Exit(1)
 
     if not verbose:
         env_verbose = os.environ.get("CLAWPWN_VERBOSE", "").lower()
@@ -393,7 +417,10 @@ def killchain(
 ):
     """Run the full attack kill chain with AI guidance."""
     project_dir = require_project()
-    db_path = project_dir / ".clawpwn" / "clawpwn.db"
+    db_path = get_project_db_path(project_dir)
+    if db_path is None:
+        console.print("[red]Project storage not found. Run 'clawpwn init' first.[/red]")
+        raise typer.Exit(1)
 
     session = SessionManager(db_path)
     state = session.get_state()
@@ -523,7 +550,10 @@ def logs(
 ):
     """Show project logs."""
     project_dir = require_project()
-    db_path = project_dir / ".clawpwn" / "clawpwn.db"
+    db_path = get_project_db_path(project_dir)
+    if db_path is None:
+        console.print("[red]Project storage not found. Run 'clawpwn init' first.[/red]")
+        raise typer.Exit(1)
 
     session = SessionManager(db_path)
 
@@ -626,7 +656,6 @@ def config(
         create_project_config_template,
         load_global_config,
         load_project_config,
-        get_project_dir,
     )
     
     if action == "init":
@@ -650,7 +679,8 @@ def config(
             if project_dir:
                 env_config = load_project_config(project_dir)
                 if env_config:
-                    console.print(f"[bold]Project Configuration ({project_dir}/.clawpwn/.env):[/bold]")
+                    env_path = get_project_env_path(project_dir) or Path("unknown")
+                    console.print(f"[bold]Project Configuration ({env_path}):[/bold]")
                     for key, value in env_config.items():
                         # Mask API keys
                         if "key" in key.lower() and value:
