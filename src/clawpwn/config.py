@@ -152,6 +152,12 @@ def create_project_config_template(project_dir: Path) -> Path:
 # Model name (provider-specific)
 # CLAWPWN_LLM_MODEL=claude-3-5-sonnet-20241022
 
+# Masscan configuration
+# CLAWPWN_MASSCAN_RATE=10000
+# CLAWPWN_MASSCAN_PORTS_QUICK=1-1024
+# CLAWPWN_MASSCAN_PORTS_NORMAL=1-10000
+# CLAWPWN_MASSCAN_PORTS_DEEP=1-65535
+
 # Backward-compatible provider-specific keys (optional)
 # ANTHROPIC_API_KEY=your-api-key-here
 # OPENAI_API_KEY=your-api-key-here

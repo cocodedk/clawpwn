@@ -1,11 +1,12 @@
 """Network discovery module for ClawPwn."""
 
 import asyncio
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from clawpwn.tools.nmap import NmapScanner, HostResult, PortScanResult
+from clawpwn.tools.masscan import MasscanScanner, HostResult, PortScanResult
 from clawpwn.modules.session import SessionManager
 
 
@@ -38,7 +39,7 @@ class NetworkDiscovery:
     """Manages network discovery and host enumeration."""
 
     def __init__(self, project_dir: Optional[Path] = None):
-        self.scanner = NmapScanner()
+        self.scanner: Optional[MasscanScanner] = None
         self.project_dir = project_dir
         self.session: Optional[SessionManager] = None
 
@@ -79,14 +80,14 @@ class NetworkDiscovery:
         """
         print(f"[*] Scanning {target}...")
 
-        if full_scan or scan_type == "full":
-            results = await self.scanner.full_scan(target, verbose=verbose)
-        elif scan_type == "quick":
-            results = await self.scanner.quick_scan(target, verbose=verbose)
-        else:
-            results = await self.scanner.scan_host(
-                target, version_detection=True, verbose=verbose
-            )
+        if self.scanner is None:
+            self.scanner = MasscanScanner()
+
+        ports = self._ports_for_scan(scan_type, full_scan)
+        rate = self._rate_for_scan()
+        results = await self.scanner.scan_host(
+            target, ports=ports, rate=rate, verbose=verbose
+        )
 
         if not results:
             return HostInfo(ip=target, notes="No response from host")
@@ -96,8 +97,8 @@ class NetworkDiscovery:
         # Convert to HostInfo
         host_info = HostInfo(
             ip=host_result.ip,
-            hostname=host_result.hostname,
-            os=host_result.os_info.get("name", ""),
+            hostname="",
+            os="",
         )
 
         # Process ports
@@ -105,13 +106,14 @@ class NetworkDiscovery:
             if port.state == "open":
                 host_info.open_ports.append(port.port)
 
+                service_name = self._guess_service(port.port)
                 service = ServiceInfo(
                     port=port.port,
                     protocol=port.protocol,
-                    name=port.service,
-                    version=port.version,
-                    product=port.product,
-                    banner=f"{port.product} {port.version}".strip(),
+                    name=service_name,
+                    version="",
+                    product="",
+                    banner=service_name,
                 )
                 host_info.services.append(service)
 
@@ -124,6 +126,46 @@ class NetworkDiscovery:
 
         print(f"[+] {target}: {len(host_info.open_ports)} open ports")
         return host_info
+
+    def _rate_for_scan(self) -> int:
+        rate = os.environ.get("CLAWPWN_MASSCAN_RATE", "10000")
+        try:
+            return int(rate)
+        except ValueError:
+            return 10000
+
+    def _ports_for_scan(self, scan_type: str, full_scan: bool) -> str:
+        if full_scan or scan_type == "full" or scan_type == "deep":
+            default = "1-65535"
+            env_key = "CLAWPWN_MASSCAN_PORTS_DEEP"
+        elif scan_type == "quick":
+            default = "1-1024"
+            env_key = "CLAWPWN_MASSCAN_PORTS_QUICK"
+        else:
+            default = "1-10000"
+            env_key = "CLAWPWN_MASSCAN_PORTS_NORMAL"
+        return os.environ.get(env_key, default)
+
+    def _guess_service(self, port: int) -> str:
+        common = {
+            21: "ftp",
+            22: "ssh",
+            23: "telnet",
+            25: "smtp",
+            53: "dns",
+            80: "http",
+            110: "pop3",
+            143: "imap",
+            443: "https",
+            445: "smb",
+            3306: "mysql",
+            5432: "postgres",
+            6379: "redis",
+            3389: "rdp",
+            8080: "http",
+            8443: "https",
+        }
+        return common.get(port, "unknown")
 
     async def enumerate_target(self, target: str) -> Dict[str, Any]:
         """

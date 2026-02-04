@@ -12,14 +12,14 @@ export PATH="$HOME/.local/bin:$PATH"
 # Install ClawPwn as a global tool
 uv tool install . --force
 
-# Ensure nmap is installed (required for port scanning)
-if ! command -v nmap >/dev/null 2>&1; then
+# Ensure masscan is installed (required for port scanning)
+if ! command -v masscan >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then
-    echo "Installing nmap (requires sudo)..."
+    echo "Installing masscan (requires sudo)..."
     sudo apt-get update
-    sudo apt-get install -y nmap
+    sudo apt-get install -y masscan
   else
-    echo "Warning: nmap not found and apt-get unavailable. Install nmap manually."
+    echo "Warning: masscan not found and apt-get unavailable. Install masscan manually."
   fi
 fi
 
