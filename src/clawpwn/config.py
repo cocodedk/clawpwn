@@ -1,4 +1,5 @@
-"""Configuration management for ClawPwn.
+"""
+Configuration management for ClawPwn.
 
 Supports multiple configuration sources in order of priority:
 1. Environment variables (highest priority)
@@ -8,12 +9,15 @@ Supports multiple configuration sources in order of priority:
 """
 
 import hashlib
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def load_env_file(env_path: Path) -> dict[str, str]:
@@ -73,7 +77,13 @@ def get_project_storage_dir(project_dir: Path | None) -> Path | None:
             target = marker.read_text().strip()
             if target:
                 return Path(target)
-        except Exception:
+        except (FileNotFoundError, PermissionError, UnicodeDecodeError, OSError) as e:
+            logger.warning(
+                "Could not read project storage path from marker %s: %s",
+                marker,
+                e,
+                exc_info=True,
+            )
             return None
 
     if marker.is_dir():

@@ -1,8 +1,55 @@
 """Tests for RustScan parsing and scanner."""
 
+import asyncio
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 
-from clawpwn.tools.rustscan import RustScanScanner
+from clawpwn.tools.rustscan import RustScanScanner, _parse_float_env
+
+
+def test_parse_float_env_unset_returns_default(monkeypatch):
+    monkeypatch.delenv("RUSTSCAN_TIMEOUT", raising=False)
+    assert _parse_float_env("RUSTSCAN_TIMEOUT") == 3600.0
+
+
+def test_parse_float_env_set_returns_float(monkeypatch):
+    monkeypatch.setenv("RUSTSCAN_TIMEOUT", "60.0")
+    assert _parse_float_env("RUSTSCAN_TIMEOUT") == 60.0
+
+
+def test_parse_float_env_invalid_returns_default(monkeypatch):
+    monkeypatch.setenv("RUSTSCAN_TIMEOUT", "invalid")
+    assert _parse_float_env("RUSTSCAN_TIMEOUT") == 3600.0
+
+
+@pytest.mark.asyncio
+async def test_rustscan_scan_host_timeout_raises():
+    """When communicate() does not complete within timeout, RuntimeError is raised."""
+
+    async def never_complete():
+        await asyncio.Future()
+
+    mock_process = Mock()
+    mock_process.communicate = lambda: never_complete()
+    mock_process.terminate = Mock()
+    mock_process.kill = Mock()
+    mock_process.wait = AsyncMock(return_value=None)
+    mock_process.stdout = None
+    mock_process.stderr = None
+    mock_process.returncode = None
+
+    with (
+        patch.object(RustScanScanner, "_check_rustscan", return_value="/usr/bin/rustscan"),
+        patch(
+            "clawpwn.tools.rustscan.asyncio.create_subprocess_exec", new_callable=AsyncMock
+        ) as mock_exec,
+    ):
+        mock_exec.return_value = mock_process
+        scanner = RustScanScanner()
+        with pytest.raises(RuntimeError, match="timed out"):
+            await scanner.scan_host("127.0.0.1", timeout=0.01)
+    mock_process.terminate.assert_called_once()
 
 
 def test_rustscan_parse_empty():

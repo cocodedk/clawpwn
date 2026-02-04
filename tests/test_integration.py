@@ -242,18 +242,21 @@ class TestReportGeneration:
 
         # Generate report
         generator = ReportGenerator(project_dir)
-        config = ReportConfig(format="html", include_evidence=True)
+        try:
+            config = ReportConfig(format="html", include_evidence=True)
 
-        report_path = generator.generate(config)
+            report_path = generator.generate(config)
 
-        # Verify report was created
-        assert report_path.exists()
-        assert report_path.suffix == ".html"
+            # Verify report was created
+            assert report_path.exists()
+            assert report_path.suffix == ".html"
 
-        # Check content
-        content = report_path.read_text()
-        assert "SQL Injection" in content
-        assert "https://example.com" in content
+            # Check content
+            content = report_path.read_text()
+            assert "SQL Injection" in content
+            assert "https://example.com" in content
+        finally:
+            generator.close()
 
     def test_report_generation_json(self, project_dir: Path, mock_env_vars):
         """Test JSON report generation."""
@@ -272,16 +275,19 @@ class TestReportGeneration:
 
         # Generate JSON report
         generator = ReportGenerator(project_dir)
-        config = ReportConfig(format="json")
+        try:
+            config = ReportConfig(format="json")
 
-        report_path = generator.generate(config)
+            report_path = generator.generate(config)
 
-        # Verify JSON structure
-        assert report_path.exists()
-        data = json.loads(report_path.read_text())
-        assert "report_metadata" in data
-        assert "project" in data
-        assert "findings" in data
+            # Verify JSON structure
+            assert report_path.exists()
+            data = json.loads(report_path.read_text())
+            assert "report_metadata" in data
+            assert "project" in data
+            assert "findings" in data
+        finally:
+            generator.close()
 
 
 class TestLLMIntegration:
@@ -291,10 +297,10 @@ class TestLLMIntegration:
         """Test LLM client can be initialized with API keys."""
         from clawpwn.ai.llm import LLMClient
 
-        # Should initialize without error
-        client = LLMClient()
-        assert client.provider == "anthropic"
-        assert client.api_key == "test-api-key"
+        # Should initialize without error; use context manager to release connection pool
+        with LLMClient() as client:
+            assert client.provider == "anthropic"
+            assert client.api_key == "test-api-key"
 
 
 class TestPerformance:

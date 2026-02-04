@@ -22,6 +22,11 @@ class NaturalLanguageInterface:
         self.orchestrator = AIOrchestrator(project_dir, self.llm)
         self.context: dict[str, Any] = {}
 
+    def close(self) -> None:
+        """Release resources; closes the LLM client."""
+        if getattr(self, "llm", None) is not None:
+            self.llm.close()
+
     def process_command(self, command: str) -> dict[str, Any]:
         """
         Process a natural language command.
@@ -162,7 +167,12 @@ CONFIDENCE: <high|medium|low>"""
         """Handle status check intent."""
         db_path = get_project_db_path(self.project_dir)
         if db_path is None:
-            raise ValueError("Project storage not found. Run 'clawpwn init' first.")
+            return {
+                "success": False,
+                "error": "Project storage not found. Run 'clawpwn init' first.",
+                "response": "Project storage not found. Run 'clawpwn init' first.",
+                "action": "status",
+            }
         session = SessionManager(db_path)
         state = session.get_state()
 
@@ -199,7 +209,12 @@ CONFIDENCE: <high|medium|low>"""
 
         db_path = get_project_db_path(self.project_dir)
         if db_path is None:
-            raise ValueError("Project storage not found. Run 'clawpwn init' first.")
+            return {
+                "success": False,
+                "error": "Project storage not found. Run 'clawpwn init' first.",
+                "response": "Project storage not found. Run 'clawpwn init' first.",
+                "action": "set_target",
+            }
         session = SessionManager(db_path)
         session.set_target(url)
 
@@ -403,4 +418,7 @@ General:
 def process_nl_command(command: str, project_dir: Path) -> dict[str, Any]:
     """Process a natural language command."""
     nli = NaturalLanguageInterface(project_dir)
-    return nli.process_command(command)
+    try:
+        return nli.process_command(command)
+    finally:
+        nli.close()

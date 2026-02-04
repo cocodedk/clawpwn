@@ -29,8 +29,8 @@ class Project(Base):
     path = Column(String, nullable=False, unique=True)
     target = Column(String, nullable=True)
     current_phase = Column(String, default="Not Started")
-    created_at = Column(DateTime, default=_utc_now)
-    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
 
     # Relationships
     findings = relationship("Finding", back_populates="project", cascade="all, delete-orphan")
@@ -56,7 +56,7 @@ class Finding(Base):
     target_url = Column(String)
     payload = Column(Text)
 
-    created_at = Column(DateTime, default=_utc_now)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
 
     # Relationship
     project = relationship("Project", back_populates="findings")
@@ -75,7 +75,7 @@ class Log(Base):
     message = Column(Text, nullable=False)
     details = Column(Text)
 
-    created_at = Column(DateTime, default=_utc_now)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
 
     # Relationship
     project = relationship("Project", back_populates="logs")

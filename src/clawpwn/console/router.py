@@ -45,12 +45,18 @@ class InputRouter:
         if not line:
             return ("nli", "")
 
+        def _safe_split(text: str) -> list[str]:
+            try:
+                return shlex.split(text)
+            except ValueError:
+                return text.split()
+
         # Force CLI with ! prefix
         if line.startswith("!"):
             rest = line[1:].strip()
             if not rest:
                 return ("cli", [])
-            return ("cli", shlex.split(rest))
+            return ("cli", _safe_split(rest))
 
         # Force NLI with ? prefix
         if line.startswith("?"):
@@ -58,7 +64,7 @@ class InputRouter:
 
         # Mode-specific routing
         if self.mode == InputMode.CLI:
-            return ("cli", shlex.split(line))
+            return ("cli", _safe_split(line))
         if self.mode == InputMode.NLI:
             return ("nli", line)
 
@@ -66,5 +72,5 @@ class InputRouter:
         parts = line.split()
         first_word = parts[0].lower() if parts else ""
         if first_word in self.CLI_COMMANDS or line.strip().startswith("--"):
-            return ("cli", shlex.split(line))
+            return ("cli", _safe_split(line))
         return ("nli", line)

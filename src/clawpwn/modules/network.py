@@ -287,7 +287,7 @@ class NetworkDiscovery:
         if include_udp:
             if self.nmap is None:
                 self.nmap = NmapScanner()
-            udp_ports = ports_udp or os.environ.get("CLAWPWN_MASSCAN_PORTS_UDP", "0-65535")
+            udp_ports = ports_udp or os.environ.get("CLAWPWN_MASSCAN_PORTS_UDP", "1-65535")
             print("[*] UDP scan (nmap)")
             udp_results = await self.nmap.scan_host_udp(target, ports=udp_ports, verbose=verbose)
             if udp_results:

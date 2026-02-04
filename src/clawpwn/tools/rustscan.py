@@ -1,11 +1,23 @@
 """RustScan wrapper for fast port discovery."""
 
 import asyncio
+import os
 import re
 import shutil
 import time
 
 from clawpwn.tools.masscan import HostResult, PortScanResult
+
+
+def _parse_float_env(name: str, default: float | None = 3600.0) -> float | None:
+    """Parse optional float from environment; return default if unset or invalid."""
+    val = os.environ.get(name)
+    if val is None or val == "":
+        return default
+    try:
+        return float(val)
+    except ValueError:
+        return default
 
 
 class RustScanScanner:
@@ -28,6 +40,7 @@ class RustScanScanner:
         batch_size: int = 5000,
         timeout_ms: int = 1000,
         verbose: bool = False,
+        timeout: float | None = None,
     ) -> list[HostResult]:
         """
         Scan a target host with rustscan.
@@ -56,6 +69,7 @@ class RustScanScanner:
         if verbose:
             print(f"[verbose] RustScan command: {' '.join(cmd)}")
 
+        effective_timeout = timeout if timeout is not None else _parse_float_env("RUSTSCAN_TIMEOUT")
         started = time.perf_counter()
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -63,7 +77,23 @@ class RustScanScanner:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        stdout, stderr = await process.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=effective_timeout
+            )
+        except TimeoutError:
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5.0)
+            except TimeoutError:
+                process.kill()
+                await process.wait()
+            stdout = b""
+            stderr = b""
+            elapsed = time.perf_counter() - started
+            raise RuntimeError(
+                f"RustScan scan timed out after {elapsed:.1f}s (timeout={effective_timeout})."
+            ) from None
         elapsed = time.perf_counter() - started
 
         if verbose:

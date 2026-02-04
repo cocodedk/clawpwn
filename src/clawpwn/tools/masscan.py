@@ -2,9 +2,21 @@
 
 import asyncio
 import json
+import os
 import shutil
 import time
 from dataclasses import dataclass, field
+
+
+def _parse_float_env(name: str, default: float | None = 3600.0) -> float | None:
+    """Parse optional float from environment; return default if unset or invalid."""
+    val = os.environ.get(name)
+    if val is None or val == "":
+        return default
+    try:
+        return float(val)
+    except ValueError:
+        return default
 
 
 @dataclass
@@ -46,6 +58,7 @@ class MasscanScanner:
         interface: str | None = None,
         sudo: bool = False,
         verbose: bool = False,
+        timeout: float | None = None,
     ) -> list[HostResult]:
         """
         Scan a target host with masscan.
@@ -76,6 +89,9 @@ class MasscanScanner:
         if verbose:
             print(f"[verbose] Masscan command: {' '.join(cmd)}")
 
+        effective_timeout = (
+            timeout if timeout is not None else _parse_float_env("CLAWPWN_MASSCAN_TIMEOUT")
+        )
         started = time.perf_counter()
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -83,7 +99,29 @@ class MasscanScanner:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        stdout, stderr = await process.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=effective_timeout
+            )
+        except TimeoutError:
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5.0)
+            except TimeoutError:
+                process.kill()
+                await process.wait()
+            if process.stdout:
+                stdout = await process.stdout.read()
+            else:
+                stdout = b""
+            if process.stderr:
+                stderr = await process.stderr.read()
+            else:
+                stderr = b""
+            elapsed = time.perf_counter() - started
+            raise RuntimeError(
+                f"Masscan scan timed out after {elapsed:.1f}s (timeout={effective_timeout})."
+            ) from None
         elapsed = time.perf_counter() - started
 
         if verbose:

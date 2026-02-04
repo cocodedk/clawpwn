@@ -40,9 +40,15 @@ class ReportGenerator:
             raise ValueError("Project storage not found. Run 'clawpwn init' first.")
         self.db_path = db_path
         self.session = SessionManager(self.db_path)
+        self._llm_owned = llm_client is None
         self.llm = llm_client or LLMClient()
         self.report_dir = project_dir / "report"
         self.report_dir.mkdir(exist_ok=True)
+
+    def close(self) -> None:
+        """Release resources; closes the LLM client if this generator created it."""
+        if self._llm_owned and getattr(self, "llm", None) is not None:
+            self.llm.close()
 
     def generate(self, config: ReportConfig | None = None) -> Path:
         """
@@ -594,5 +600,8 @@ and high severity issues to reduce organizational risk."""
 def generate_report(project_dir: Path, format: str = "html", include_evidence: bool = True) -> Path:
     """Generate a report for a project."""
     generator = ReportGenerator(project_dir)
-    config = ReportConfig(format=format, include_evidence=include_evidence)
-    return generator.generate(config)
+    try:
+        config = ReportConfig(format=format, include_evidence=include_evidence)
+        return generator.generate(config)
+    finally:
+        generator.close()

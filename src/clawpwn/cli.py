@@ -2,6 +2,8 @@
 
 import asyncio
 import os
+import socket
+import ssl
 import time
 from pathlib import Path
 
@@ -12,7 +14,7 @@ from rich.panel import Panel
 from clawpwn.ai.orchestrator import AIOrchestrator
 from clawpwn.config import get_project_db_path, get_project_env_path
 from clawpwn.db.init import init_db
-from clawpwn.modules.network import NetworkDiscovery
+from clawpwn.modules.network import NetworkDiscovery, ServiceInfo
 from clawpwn.modules.scanner import ScanConfig, Scanner
 from clawpwn.modules.session import SessionManager
 
@@ -22,6 +24,24 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+
+def _detect_scheme(host: str, port: int, service: ServiceInfo, timeout: float = 2.0) -> str:
+    """Derive URL scheme from service metadata or TLS probe. Returns 'http' or 'https'."""
+    name = (service.name or "").lower()
+    protocol = (service.protocol or "").lower()
+    if name == "https" or "https" in name or "tls" in protocol or "ssl" in protocol:
+        return "https"
+    try:
+        ctx = ssl.create_default_context()
+        # Probe only; accept self-signed/invalid certs to avoid false HTTP classification.
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host) as _:
+                return "https"
+    except (OSError, ssl.SSLError):
+        return "http"
 
 
 @app.command()
@@ -358,7 +378,7 @@ def scan(
                 ],
                 "web_services": [
                     {
-                        "url": f"{'https' if s.port == 443 else 'http'}://{host_target}:{s.port}",
+                        "url": f"{_detect_scheme(host_target, s.port, s)}://{host_target}:{s.port}",
                         "port": s.port,
                         "service": s.name,
                     }
@@ -393,7 +413,7 @@ def scan(
             )
             console.print(f"[*] Phase 2: Web Application Scanning ({len(web_services)} service(s))")
             for ws in web_services:
-                url = f"{'https' if ws.port == 443 else 'http'}://{host_target}:{ws.port}"
+                url = f"{_detect_scheme(host_target, ws.port, ws)}://{host_target}:{ws.port}"
                 console.print(f"[*] Scanning {url}...")
                 web_started = time.perf_counter()
                 findings = await web_scanner.scan(url, config)
@@ -426,10 +446,11 @@ Open ports: {host_info.open_ports or []}
 Services: {service_summary}
 
 Provide the next safe, authorized, low-risk enumeration steps. Do not exploit. Focus on validation, version checks, and service-specific recon. Return a short numbered list."""
-            response = LLMClient(project_dir=project_dir).chat(
-                prompt,
-                system_prompt="You are a penetration testing assistant. Provide only safe, authorized, non-destructive next steps.",
-            )
+            with LLMClient(project_dir=project_dir) as client:
+                response = client.chat(
+                    prompt,
+                    system_prompt="You are a penetration testing assistant. Provide only safe, authorized, non-destructive next steps.",
+                )
             console.print("\\n[bold]AI Next Steps:[/bold]")
             console.print(response.strip())
         except Exception as e:
@@ -524,9 +545,14 @@ def killchain(
 
     target_url = target or state.target
     if target_url and "://" not in target_url:
-        target_url = f"http://{target_url}"
-        session.set_target(target_url)
-        console.print(f"[dim]No scheme provided. Using {target_url}[/dim]")
+        target_url_with_scheme = f"http://{target_url}"
+        console.print(
+            f"[dim]No scheme provided. Using {target_url_with_scheme} for this run only (session target unchanged).[/dim]"
+        )
+        if typer.confirm("Save this as the project target?", default=False):
+            session.set_target(target_url_with_scheme)
+            console.print(f"[dim]Target saved: {target_url_with_scheme}[/dim]")
+        target_url = target_url_with_scheme
 
     console.print(
         Panel(
@@ -548,30 +574,34 @@ def killchain(
 
     async def run_killchain():
         orchestrator = AIOrchestrator(project_dir)
+        try:
+            if auto:
+                # Auto mode - AI makes all decisions
+                console.print("[blue]Running in automatic mode...[/blue]")
+                results = await orchestrator.run_kill_chain(target_url, auto=True)
+            else:
+                # AI-assisted mode - ask for approval on critical actions
+                console.print("[blue]Running in AI-assisted mode...[/blue]")
+                console.print(
+                    "[dim]You will be prompted for approval on high-risk actions.[/dim]\n"
+                )
 
-        if auto:
-            # Auto mode - AI makes all decisions
-            console.print("[blue]Running in automatic mode...[/blue]")
-            results = await orchestrator.run_kill_chain(target_url, auto=True)
-        else:
-            # AI-assisted mode - ask for approval on critical actions
-            console.print("[blue]Running in AI-assisted mode...[/blue]")
-            console.print("[dim]You will be prompted for approval on high-risk actions.[/dim]\n")
+                def approval_callback(action):
+                    console.print(f"\n[yellow]AI wants to:[/yellow] {action.reason}")
+                    console.print(f"[dim]Target: {action.target} | Risk: {action.risk_level}[/dim]")
 
-            def approval_callback(action):
-                console.print(f"\n[yellow]AI wants to:[/yellow] {action.reason}")
-                console.print(f"[dim]Target: {action.target} | Risk: {action.risk_level}[/dim]")
+                    if action.risk_level in ["critical", "high"]:
+                        response = input("Approve? (yes/no): ").lower().strip()
+                        return response == "yes"
+                    return True
 
-                if action.risk_level in ["critical", "high"]:
-                    response = input("Approve? (yes/no): ").lower().strip()
-                    return response == "yes"
-                return True
+                results = await orchestrator.run_kill_chain(
+                    target_url, auto=False, approval_callback=approval_callback
+                )
 
-            results = await orchestrator.run_kill_chain(
-                target_url, auto=False, approval_callback=approval_callback
-            )
-
-        return results
+            return results
+        finally:
+            orchestrator.close()
 
     try:
         results = asyncio.run(run_killchain())
@@ -607,17 +637,20 @@ def report(
 
     try:
         generator = ReportGenerator(project_dir)
-        config = ReportConfig(
-            format=format,
-            include_evidence=include_evidence,
-            include_remediation=True,
-            executive_summary=True,
-        )
+        try:
+            config = ReportConfig(
+                format=format,
+                include_evidence=include_evidence,
+                include_remediation=True,
+                executive_summary=True,
+            )
 
-        report_file = generator.generate(config)
+            report_file = generator.generate(config)
 
-        console.print(f"[green]Report generated:[/green] {report_file}")
-        console.print(f"[dim]Location: {report_file.parent}[/dim]")
+            console.print(f"[green]Report generated:[/green] {report_file}")
+            console.print(f"[dim]Location: {report_file.parent}[/dim]")
+        finally:
+            generator.close()
 
     except Exception as e:
         console.print(f"[red]Report generation failed: {e}[/red]")

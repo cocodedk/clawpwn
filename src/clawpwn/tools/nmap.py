@@ -3,9 +3,25 @@
 import asyncio
 import os
 import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+
+def _is_root() -> bool:
+    """Return True if running as root (Unix) or elevated admin (Windows)."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0  # type: ignore[attr-defined]
+        except (AttributeError, OSError):
+            return False
+    try:
+        return os.geteuid() == 0
+    except (AttributeError, OSError):
+        return False
 
 
 @dataclass
@@ -83,7 +99,7 @@ class NmapScanner:
         elif udp:
             cmd.extend(["-sU", "-Pn"])
         # Use unprivileged scan settings when not running as root
-        elif os.geteuid() != 0:
+        elif not _is_root():
             cmd.extend(["-sT", "-Pn", "--unprivileged"])
 
         if version_detection:

@@ -24,4 +24,4 @@ jobs:
         run: uv sync --extra dev --frozen
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run pytest --cov=src/clawpwn --cov-report=term-missing --cov-fail-under=60

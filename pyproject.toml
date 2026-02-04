@@ -41,6 +41,13 @@ filterwarnings = [
     "ignore::ResourceWarning",
 ]
 
+[tool.coverage.run]
+omit = [
+    "src/clawpwn/console/app.py",   # REPL; covered in follow-up
+    "src/clawpwn/ai/orchestrator.py",  # deeper coverage in later pass
+    "src/clawpwn/cli.py",           # CLI entrypoints; deeper coverage in later pass
+]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100

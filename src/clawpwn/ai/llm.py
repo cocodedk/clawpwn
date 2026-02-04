@@ -1,5 +1,6 @@
 """LLM client for ClawPwn AI integration."""
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +48,25 @@ class LLMClient:
         self.base_url = get_llm_base_url(project_dir)
 
         self.client = httpx.Client(timeout=60.0)
+
+    def close(self) -> None:
+        """Close the underlying HTTP client and release the connection pool."""
+        client = getattr(self, "client", None)
+        if client is not None:
+            client.close()
+            self.client = None  # idempotent; avoid double-close and __del__ no-op
+
+    def __enter__(self) -> "LLMClient":
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _get_api_key_with_fallback(self) -> str:
         """Get API key from multiple sources with helpful error messages."""
@@ -102,6 +122,8 @@ Get your API key from:
 
     def _chat_anthropic(self, message: str, system_prompt: str | None = None) -> str:
         """Chat with Claude API."""
+        if getattr(self, "client", None) is None:
+            raise RuntimeError("LLM client is closed; cannot call _chat_anthropic.")
         base = self.base_url or "https://api.anthropic.com"
         url = f"{base.rstrip('/')}/v1/messages"
 
@@ -121,13 +143,46 @@ Get your API key from:
             payload["system"] = system_prompt
 
         response = self.client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
+        raw_text = response.text
 
-        data = response.json()
-        return data["content"][0]["text"]
+        if response.status_code >= 400:
+            response.raise_for_status()
+
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Anthropic API returned invalid JSON (status {response.status_code}): {e}. "
+                f"Raw response: {raw_text[:500]!r}"
+            ) from e
+
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"Anthropic API response is not a dict (got {type(data).__name__}). "
+                f"Raw response: {raw_text[:500]!r}"
+            )
+        content = data.get("content")
+        if not isinstance(content, list):
+            raise ValueError(
+                f"Anthropic API response missing or invalid 'content' (got {type(content).__name__}). "
+                f"Raw response: {raw_text[:500]!r}"
+            )
+        if len(content) == 0:
+            raise ValueError(
+                f"Anthropic API response 'content' is empty. Raw response: {raw_text[:500]!r}"
+            )
+        first = content[0]
+        if not isinstance(first, dict) or "text" not in first:
+            raise ValueError(
+                f"Anthropic API response content[0] missing 'text' key. "
+                f"Raw response: {raw_text[:500]!r}"
+            )
+        return first["text"]
 
     def _chat_openai(self, message: str, system_prompt: str | None = None) -> str:
         """Chat with OpenAI API."""
+        if getattr(self, "client", None) is None:
+            raise RuntimeError("LLM client is closed; cannot call _chat_openai.")
         if self.provider == "openrouter":
             base = self.base_url or "https://openrouter.ai/api/v1"
         else:
@@ -152,10 +207,48 @@ Get your API key from:
         }
 
         response = self.client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
+        raw_text = response.text
 
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
+        if response.status_code >= 400:
+            response.raise_for_status()
+
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"OpenAI/OpenRouter API returned invalid JSON (status {response.status_code}): {e}. "
+                f"Raw response: {raw_text[:500]!r}"
+            ) from e
+
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"OpenAI/OpenRouter API response is not a dict (got {type(data).__name__}). "
+                f"Raw response: {raw_text[:500]!r}"
+            )
+        choices = data.get("choices")
+        if choices is None or not isinstance(choices, list):
+            raise ValueError(
+                f"OpenAI/OpenRouter API response missing or invalid 'choices' (got {type(choices).__name__}). "
+                f"Raw response: {raw_text[:500]!r}"
+            )
+        if len(choices) == 0:
+            raise ValueError(
+                f"OpenAI/OpenRouter API response 'choices' is an empty list. "
+                f"Raw response: {raw_text[:500]!r}"
+            )
+        first = choices[0]
+        if not isinstance(first, dict):
+            raise ValueError(
+                f"OpenAI/OpenRouter API response choices[0] is not a dict. "
+                f"Raw response: {raw_text[:500]!r}"
+            )
+        message = first.get("message")
+        if not isinstance(message, dict) or "content" not in message:
+            raise ValueError(
+                f"OpenAI/OpenRouter API response choices[0] missing 'message' with 'content'. "
+                f"Raw response: {raw_text[:500]!r}"
+            )
+        return message["content"]
 
     def analyze_finding(self, finding_data: dict[str, Any]) -> str:
         """Analyze a finding and provide AI insights."""

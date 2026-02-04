@@ -85,8 +85,13 @@ fi
 get_env_value() {
   local key="$1"
   local line
+  local val
   line="$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null || true)"
-  printf "%s" "${line#*=}"
+  val="${line#*=}"
+  # Strip trailing carriage return and newline so we never write multi-line values
+  while [[ "$val" = *$'\n' ]]; do val="${val%$'\n'}"; done
+  while [[ "$val" = *$'\r' ]]; do val="${val%$'\r'}"; done
+  printf "%s" "$val"
 }
 
 # Consider key "set" if it exists in .env or in the current environment (so we don't prompt again)
@@ -101,58 +106,69 @@ get_current_value() {
   printf "%s" "$current"
 }
 
-set_env_value() {
-  local key="$1"
-  local value="$2"
+# Write the entire .env once from env_values (no partial updates).
+write_env_file() {
+  local key
+  local val
   if command -v python3 >/dev/null 2>&1; then
-    printf "%s\n%s\n%s\n" "$key" "$value" "$ENV_FILE" | python3 - <<'PY'
-from pathlib import Path
-import re
+    (
+      datafile="$(mktemp)"
+      trap 'rm -f "$datafile"' EXIT
+      printf "%s\n" "$ENV_FILE" > "$datafile"
+      for key in "${required_keys[@]}"; do
+        val="${env_values[$key]:-}"
+        val="${val//$'\n'/}"
+        val="${val//$'\r'/}"
+        printf "%s=%s\n" "$key" "$val" >> "$datafile"
+      done
+      python3 - "$datafile" <<'PY'
 import sys
+from pathlib import Path
 
-data = sys.stdin.read().splitlines()
-key = data[0] if data else ""
-value = data[1] if len(data) > 1 else ""
-path = Path(data[2]) if len(data) > 2 else Path(".env")
-
-lines = path.read_text().splitlines() if path.exists() else []
-found = False
-out = []
-for line in lines:
-    if re.match(rf"^{re.escape(key)}=", line):
-        out.append(f"{key}={value}")
-        found = True
-    else:
-        out.append(line)
-
-if not found:
-    out.append(f"{key}={value}")
-
-path.write_text("\\n".join(out) + "\\n")
+with open(sys.argv[1]) as f:
+    lines = f.read().splitlines()
+path = Path(lines[0])
+out = [line for line in lines[1:] if "=" in line]
+path.write_text(chr(10).join(out) + chr(10))
 PY
+    )
   else
-    # Fallback (best-effort) without python3
-    if grep -qE "^${key}=" "$ENV_FILE"; then
-      awk -v k="$key" -v v="$value" 'BEGIN{FS=OFS="="} $1==k{$2=v} {print}' "$ENV_FILE" > "$ENV_FILE.tmp"
-      mv "$ENV_FILE.tmp" "$ENV_FILE"
-    else
-      printf "%s=%s\n" "$key" "$value" >> "$ENV_FILE"
-    fi
+    : > "$ENV_FILE"
+    for key in "${required_keys[@]}"; do
+      val="${env_values[$key]:-}"
+      val="${val//$'\n'/}"
+      val="${val//$'\r'/}"
+      printf "%s=%s\n" "$key" "$val" >> "$ENV_FILE"
+    done
   fi
 }
 
+# Show current value (including for API key) and hint. Then read; if user presses Enter
+# and current is non-empty, return current; otherwise return user input.
+# Messages go to stderr so they are visible when stdout is captured (val="$(prompt_value ...)").
 prompt_value() {
   local key="$1"
   local prompt="$2"
   local secret="${3:-false}"
+  local current="$4"
   local value
+  if [ -n "$current" ]; then
+    echo "  Current value: $current" >&2
+  else
+    echo "  Current value: (empty)" >&2
+  fi
+  echo "  (Press Enter to keep current value, or enter a new value. If current is empty, you must enter a value to set one.)" >&2
   if [ "$secret" = "true" ]; then
     read -r -s -p "$prompt: " value
-    echo
+    echo >&2
   else
     read -r -p "$prompt: " value
   fi
-  printf "%s" "$value"
+  if [ -z "$value" ] && [ -n "$current" ]; then
+    printf "%s" "$current"
+  else
+    printf "%s" "$value"
+  fi
 }
 
 provider_value=""
@@ -165,42 +181,44 @@ required_keys=(
   "CLAWPWN_VERBOSE"
 )
 
+declare -A env_values
 for key in "${required_keys[@]}"; do
   current="$(get_current_value "$key")"
-  if [ -n "$current" ] && [ "$FORCE" != "true" ]; then
-    echo "  $key already set, skipping (use --force to override)"
-  elif [ -z "$current" ] || [ "$FORCE" = "true" ]; then
-    case "$key" in
+  case "$key" in
       "CLAWPWN_LLM_PROVIDER")
-        val="$(prompt_value "$key" "LLM provider (e.g., openai, anthropic, local)")"
+        val="$(prompt_value "$key" "LLM provider (e.g., openai, anthropic, local)" "false" "$current")"
         provider_value="$val"
         ;;
       "CLAWPWN_LLM_API_KEY")
-        val="$(prompt_value "$key" "LLM API key" "true")"
+        val="$(prompt_value "$key" "LLM API key" "true" "$current")"
         ;;
       "CLAWPWN_LLM_BASE_URL")
         if [ "${provider_value:-${CLAWPWN_LLM_PROVIDER:-}}" = "openrouter" ]; then
+          if [ -n "$current" ]; then echo "  Current value: $current" >&2; else echo "  Current value: (empty)" >&2; fi
           val="https://openrouter.ai/api/v1"
-          echo "Using OpenRouter base URL: $val"
+          echo "  Using OpenRouter base URL: $val" >&2
         else
-          val="$(prompt_value "$key" "LLM base URL (optional)")"
+          val="$(prompt_value "$key" "LLM base URL (optional)" "false" "$current")"
         fi
         ;;
       "CLAWPWN_LLM_MODEL")
-        val="$(prompt_value "$key" "Default model (e.g., gpt-4.1)")"
+        val="$(prompt_value "$key" "Default model (e.g., gpt-4.1)" "false" "$current")"
         ;;
       "CLAWPWN_DATA_DIR")
-        val="$(prompt_value "$key" "Data directory (optional, leave blank for default)")"
+        val="$(prompt_value "$key" "Data directory (optional, leave blank for default)" "false" "$current")"
         ;;
       "CLAWPWN_VERBOSE")
-        val="$(prompt_value "$key" "Verbose logging (true/false)")"
+        val="$(prompt_value "$key" "Verbose logging (true/false)" "false" "$current")"
         ;;
       *)
-        val="$(prompt_value "$key" "Value for $key")"
+        val="$(prompt_value "$key" "Value for $key" "false" "$current")"
         ;;
     esac
-    set_env_value "$key" "$val"
-  fi
+  val="${val//$'\n'/}"
+  val="${val//$'\r'/}"
+  env_values["$key"]="$val"
 done
+
+write_env_file
 
 echo "Installed. Ensure ~/.local/bin is on your PATH, then run: clawpwn --help"

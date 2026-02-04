@@ -167,17 +167,21 @@ class ConsoleApp:
             enable_history_search=True,
         )
 
-        while self.running:
-            try:
-                prompt = self._build_prompt()
-                line = session.prompt(prompt)
-                if not line.strip():
-                    continue
-                if self._handle_builtin(line):
-                    continue
-                self._process_input(line)
-            except KeyboardInterrupt:
-                self.console.print("\n[dim]Use 'exit' to quit[/dim]")
-            except EOFError:
-                self.console.print("\n[green]Goodbye![/green]")
-                break
+        try:
+            while self.running:
+                try:
+                    prompt = self._build_prompt()
+                    line = session.prompt(prompt)
+                    if not line.strip():
+                        continue
+                    if self._handle_builtin(line):
+                        continue
+                    self._process_input(line)
+                except KeyboardInterrupt:
+                    self.console.print("\n[dim]Use 'exit' to quit[/dim]")
+                except EOFError:
+                    self.console.print("\n[green]Goodbye![/green]")
+                    break
+        finally:
+            if self.nli is not None:
+                self.nli.close()

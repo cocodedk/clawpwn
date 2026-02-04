@@ -117,6 +117,7 @@ class TestHistoryManager:
                 self.history_dir = base
                 self.history_file = base / "console_history"
                 self.history_dir.mkdir(parents=True, exist_ok=True)
+                # Empty file; FileHistory format uses "+ <command>" per entry
                 self._file_history = FileHistory(str(self.history_file))
 
         manager = FakeHistoryManager(tmp_path)
@@ -129,7 +130,8 @@ class TestHistoryManager:
                 self.history_dir = base
                 self.history_file = base / "console_history"
                 self.history_dir.mkdir(parents=True, exist_ok=True)
-                self.history_file.write_text("scan\nstatus\ntarget x\n")
+                # FileHistory format: each entry as "+ <command>" with blank line between
+                self.history_file.write_text("+ scan\n\n+ status\n\n+ target x\n")
                 self._file_history = FileHistory(str(self.history_file))
 
         manager = FakeHistoryManager(tmp_path)
@@ -137,3 +139,20 @@ class TestHistoryManager:
         assert len(recent) == 3
         assert "scan" in recent
         assert "status" in recent
+        assert "target x" in recent
+
+    def test_get_recent_mixed_format_parses_both(self, tmp_path: Path) -> None:
+        """FileHistory '+ cmd' and plain 'cmd' lines are both returned."""
+
+        class FakeHistoryManager(HistoryManager):
+            def __init__(self, base: Path) -> None:
+                self.history_dir = base
+                self.history_file = base / "console_history"
+                self.history_dir.mkdir(parents=True, exist_ok=True)
+                self.history_file.write_text("plainline\n+ prefixed\n")
+                self._file_history = FileHistory(str(self.history_file))
+
+        manager = FakeHistoryManager(tmp_path)
+        recent = manager.get_recent(10)
+        assert "plainline" in recent
+        assert "prefixed" in recent

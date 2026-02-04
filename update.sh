@@ -42,5 +42,5 @@ scan_src = inspect.getsource(c.scan)
 print(f"has ip-scan fix: {'No URL scheme detected' in scan_src and 'scan_host' in scan_src}")
 PY
 else
-  echo "Note: Could not verify installed code (python3 not available)."
+  echo "Note: Could not verify installed code (uv not available)."
 fi

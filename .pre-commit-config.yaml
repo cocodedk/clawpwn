@@ -6,11 +6,13 @@ repos:
         entry: uv run ruff check --fix src tests
         language: system
         types: [python]
+        pass_filenames: false
       - id: ruff-format
         name: ruff (format)
         entry: uv run ruff format src tests
         language: system
         types: [python]
+        pass_filenames: false
       - id: pytest
         name: pytest
         entry: uv run pytest -q -p no:cacheprovider --maxfail=1

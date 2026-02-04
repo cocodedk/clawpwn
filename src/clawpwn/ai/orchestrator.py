@@ -79,6 +79,7 @@ class AIOrchestrator:
             raise ValueError("Project storage not found. Run 'clawpwn init' first.")
         self.db_path = db_path
         self.session = SessionManager(self.db_path)
+        self._llm_owned = llm_client is None
         self.llm = llm_client or LLMClient()
 
         # Initialize modules
@@ -93,6 +94,11 @@ class AIOrchestrator:
         # Safety configuration
         self.require_approval_for = ["critical", "exploitation", "exfiltration"]
         self.auto_mode = False
+
+    def close(self) -> None:
+        """Release resources; closes the LLM client if this orchestrator created it."""
+        if self._llm_owned and getattr(self, "llm", None) is not None:
+            self.llm.close()
 
     def set_auto_mode(self, enabled: bool) -> None:
         """Enable or disable automatic mode (AI makes decisions without asking)."""
