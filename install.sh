@@ -12,14 +12,28 @@ export PATH="$HOME/.local/bin:$PATH"
 # Install ClawPwn as a global tool
 uv tool install . --force
 
-# Ensure masscan is installed (required for port scanning)
+# Ensure masscan is installed (optional; use --scanner masscan)
 if ! command -v masscan >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then
     echo "Installing masscan (requires sudo)..."
     sudo apt-get update
     sudo apt-get install -y masscan
   else
-    echo "Warning: masscan not found and apt-get unavailable. Install masscan manually."
+    echo "Warning: masscan not found and apt-get unavailable. Install masscan manually for --scanner masscan."
+  fi
+fi
+
+# Ensure rustscan is installed (default scanner)
+if ! command -v rustscan >/dev/null 2>&1; then
+  if command -v cargo >/dev/null 2>&1; then
+    echo "Installing rustscan via cargo..."
+    cargo install rustscan
+  elif command -v apt-get >/dev/null 2>&1; then
+    echo "Installing rustscan (requires sudo)..."
+    sudo apt-get update
+    sudo apt-get install -y rustscan 2>/dev/null || echo "Warning: rustscan package may not be in your distro. Install with: cargo install rustscan"
+  else
+    echo "Warning: rustscan not found. Install with: cargo install rustscan (or use --scanner masscan/nmap)."
   fi
 fi
 

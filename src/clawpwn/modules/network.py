@@ -4,10 +4,11 @@ import asyncio
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 
 from clawpwn.tools.masscan import MasscanScanner, HostResult, PortScanResult
 from clawpwn.tools.nmap import NmapScanner
+from clawpwn.tools.rustscan import RustScanScanner
 from clawpwn.modules.session import SessionManager
 from clawpwn.config import get_project_db_path
 
@@ -37,11 +38,39 @@ class HostInfo:
     notes: str = ""
 
 
+def _split_port_range(low: int, high: int, n: int) -> List[str]:
+    """Split a port range [low, high] into n roughly equal range strings."""
+    if n <= 1 or high <= low:
+        return [f"{low}-{high}"]
+    total = high - low + 1
+    chunk_size = max(1, total // n)
+    ranges: List[str] = []
+    a = low
+    for _ in range(n - 1):
+        b = min(a + chunk_size - 1, high)
+        ranges.append(f"{a}-{b}")
+        a = b + 1
+    if a <= high:
+        ranges.append(f"{a}-{high}")
+    return ranges
+
+
+def _parse_port_spec(spec: str) -> Optional[tuple[int, int]]:
+    """Parse 'a-b' into (a, b). Returns None for comma-separated or single ports."""
+    spec = spec.strip()
+    if "-" in spec and "," not in spec:
+        parts = spec.split("-", 1)
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            return (int(parts[0]), int(parts[1]))
+    return None
+
+
 class NetworkDiscovery:
     """Manages network discovery and host enumeration."""
 
     def __init__(self, project_dir: Optional[Path] = None):
-        self.scanner: Optional[MasscanScanner] = None
+        self._port_scanner: Optional[Union[MasscanScanner, NmapScanner, RustScanScanner]] = None
+        self._scanner_type: str = "rustscan"
         self.nmap: Optional[NmapScanner] = None
         self.project_dir = project_dir
         self.session: Optional[SessionManager] = None
@@ -50,6 +79,67 @@ class NetworkDiscovery:
             db_path = get_project_db_path(project_dir)
             if db_path and db_path.exists():
                 self.session = SessionManager(db_path)
+
+    def _get_port_scanner(self, scanner_type: str = "rustscan"):
+        """Return the port scanner instance for the given type."""
+        if self._port_scanner is not None and self._scanner_type == scanner_type:
+            return self._port_scanner
+        self._scanner_type = scanner_type
+        if scanner_type == "rustscan":
+            self._port_scanner = RustScanScanner()
+        elif scanner_type == "masscan":
+            self._port_scanner = MasscanScanner()
+        elif scanner_type == "nmap":
+            self._port_scanner = NmapScanner()
+        else:
+            raise ValueError(
+                f"Unknown scanner type: {scanner_type}. Use rustscan, masscan, or nmap."
+            )
+        return self._port_scanner
+
+    async def _run_port_scan(
+        self,
+        scanner: Any,
+        scanner_type: str,
+        target: str,
+        ports: str,
+        verbose: bool,
+    ) -> List[HostResult]:
+        """Run port scan with scanner-specific arguments."""
+        if scanner_type == "rustscan":
+            batch_size = int(os.environ.get("CLAWPWN_RUSTSCAN_BATCH_SIZE", "5000"))
+            timeout_ms = int(os.environ.get("CLAWPWN_RUSTSCAN_TIMEOUT_MS", "1000"))
+            return await scanner.scan_host(
+                target,
+                ports=ports,
+                batch_size=batch_size,
+                timeout_ms=timeout_ms,
+                verbose=verbose,
+            )
+        if scanner_type == "masscan":
+            rate = self._rate_for_scan()
+            interface = os.environ.get("CLAWPWN_MASSCAN_INTERFACE")
+            sudo_env = os.environ.get("CLAWPWN_MASSCAN_SUDO")
+            sudo = (
+                sudo_env.lower() in {"1", "true", "yes", "on"}
+                if sudo_env is not None
+                else os.geteuid() != 0
+            )
+            return await scanner.scan_host(
+                target,
+                ports=ports,
+                rate=rate,
+                interface=interface,
+                sudo=sudo,
+                verbose=verbose,
+            )
+        if scanner_type == "nmap":
+            return await scanner.scan_host(
+                target,
+                ports=ports,
+                verbose=verbose,
+            )
+        raise ValueError(f"Unknown scanner type: {scanner_type}")
 
     async def discover_hosts(self, network: str) -> List[str]:
         """
@@ -68,6 +158,17 @@ class NetworkDiscovery:
         print(f"[+] Found {len(hosts)} live hosts")
         return hosts
 
+    def _merge_host_results(self, results_list: List[List[HostResult]], target: str) -> List[HostResult]:
+        """Merge multiple scan results for the same target into one HostResult per IP."""
+        all_ports: Dict[int, PortScanResult] = {}
+        for results in results_list:
+            for host in results:
+                for port in host.ports:
+                    if port.state == "open" and port.port not in all_ports:
+                        all_ports[port.port] = port
+        ports_sorted = [all_ports[p] for p in sorted(all_ports)]
+        return [HostResult(ip=target, ports=ports_sorted)]
+
     async def scan_host(
         self,
         target: str,
@@ -78,6 +179,8 @@ class NetworkDiscovery:
         verify_tcp: bool = False,
         ports_tcp: Optional[str] = None,
         ports_udp: Optional[str] = None,
+        scanner_type: str = "rustscan",
+        parallel_groups: int = 4,
     ) -> HostInfo:
         """
         Scan a single host for open ports and services.
@@ -86,29 +189,35 @@ class NetworkDiscovery:
             target: IP address or hostname
             scan_type: "quick", "normal", or "full"
             full_scan: Scan all 65535 ports
+            scanner_type: "rustscan", "masscan", or "nmap"
+            parallel_groups: Number of parallel port groups (for range scans only)
         """
         print(f"[*] Scanning {target}...")
 
-        if self.scanner is None:
-            self.scanner = MasscanScanner()
-
         ports = ports_tcp or self._ports_for_scan(scan_type, full_scan)
-        rate = self._rate_for_scan()
-        interface = os.environ.get("CLAWPWN_MASSCAN_INTERFACE")
-        sudo_env = os.environ.get("CLAWPWN_MASSCAN_SUDO")
-        if sudo_env is None:
-            sudo = os.geteuid() != 0
+        scanner = self._get_port_scanner(scanner_type)
+        print(f"[*] Port scan ({scanner_type})")
+
+        # Parallel port group scanning: only for single range (e.g. 1-65535)
+        port_ranges: List[str] = []
+        parsed = _parse_port_spec(ports)
+        if parsed and parallel_groups > 1:
+            low, high = parsed
+            port_ranges = _split_port_range(low, high, parallel_groups)
         else:
-            sudo = sudo_env.lower() in {"1", "true", "yes", "on"}
-        print("[*] Stealth scan (masscan)")
-        results = await self.scanner.scan_host(
-            target,
-            ports=ports,
-            rate=rate,
-            interface=interface,
-            sudo=sudo,
-            verbose=verbose,
-        )
+            port_ranges = [ports]
+
+        if len(port_ranges) > 1:
+            tasks = [
+                self._run_port_scan(scanner, scanner_type, target, pr, verbose)
+                for pr in port_ranges
+            ]
+            results_list = await asyncio.gather(*tasks)
+            results = self._merge_host_results(results_list, target)
+        else:
+            results = await self._run_port_scan(
+                scanner, scanner_type, target, ports, verbose
+            )
 
         # Convert to HostInfo
         host_info = HostInfo(
@@ -118,10 +227,11 @@ class NetworkDiscovery:
         )
 
         host_result = results[0] if results else None
+        scanner_label = scanner_type
         if not host_result:
-            host_info.notes = "No response from masscan"
+            host_info.notes = f"No response from {scanner_label}"
 
-        # Process ports (masscan TCP)
+        # Process ports from port scanner
         if host_result:
             for port in host_result.ports:
                 if port.state == "open":

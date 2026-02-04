@@ -258,6 +258,18 @@ def scan(
         "normal", "--depth", help="Scan depth: quick, normal, deep"
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose scan output"),
+    scanner: str = typer.Option(
+        "rustscan",
+        "--scanner",
+        "-s",
+        help="Port scanner: rustscan, masscan, nmap",
+    ),
+    parallel: int = typer.Option(
+        4,
+        "--parallel",
+        "-p",
+        help="Number of parallel port groups for range scans",
+    ),
 ):
     """Start the scanning phase."""
     if not isinstance(verbose, bool):
@@ -287,8 +299,18 @@ def scan(
     console.print("[*] Phase 1: Network Discovery")
 
     async def run_scan():
-        # Initialize scanner
-        scanner = Scanner(project_dir)
+        # Port scanner choice from CLI
+        port_scanner_name = (
+            scanner.strip().lower()
+            if isinstance(scanner, str)
+            else "rustscan"
+        )
+        if port_scanner_name not in ("rustscan", "masscan", "nmap"):
+            port_scanner_name = "rustscan"
+        parallel_groups = max(1, int(parallel)) if isinstance(parallel, int) else 4
+
+        # Initialize web vulnerability scanner and network discovery
+        web_scanner = Scanner(project_dir)
         network = NetworkDiscovery(project_dir)
 
         scan_started = time.perf_counter()
@@ -317,6 +339,8 @@ def scan(
                 verify_tcp=True,
                 ports_tcp=ports_tcp,
                 ports_udp=ports_udp,
+                scanner_type=port_scanner_name,
+                parallel_groups=parallel_groups,
             )
         else:
             host_info = await network.scan_host(
@@ -324,6 +348,8 @@ def scan(
                 scan_type=scan_type,
                 full_scan=full_scan,
                 verbose=verbose,
+                scanner_type=port_scanner_name,
+                parallel_groups=parallel_groups,
             )
 
         if verbose:
@@ -363,14 +389,45 @@ def scan(
 
             console.print(f"[*] Phase 2: Web Application Scanning ({depth} mode)")
             web_started = time.perf_counter()
-            findings = await scanner.scan(target_url, config)
+            findings = await web_scanner.scan(target_url, config)
             if verbose:
                 elapsed = time.perf_counter() - web_started
                 console.print(f"[dim]Web scan completed in {elapsed:.2f}s[/dim]")
             return findings
 
+        # Auto-scan discovered web services when target is an IP
+        all_findings = []
+        web_services = [
+            s
+            for s in host_info.services
+            if s.name in ["http", "https", "http-proxy"]
+        ]
+        if web_services:
+            config = ScanConfig(
+                target=host_target,
+                depth=depth,
+            )
+            console.print(
+                f"[*] Phase 2: Web Application Scanning ({len(web_services)} service(s))"
+            )
+            for ws in web_services:
+                url = (
+                    f"{'https' if ws.port == 443 else 'http'}://{host_target}:{ws.port}"
+                )
+                console.print(f"[*] Scanning {url}...")
+                web_started = time.perf_counter()
+                findings = await web_scanner.scan(url, config)
+                all_findings.extend(findings)
+                if verbose:
+                    elapsed = time.perf_counter() - web_started
+                    console.print(f"[dim]  Completed in {elapsed:.2f}s[/dim]")
+            if all_findings:
+                console.print(
+                    f"[green]Web scans found {len(all_findings)} potential issue(s).[/green]"
+                )
+
         # AI-guided next steps for raw IP targets
-        console.print("[*] Phase 2: AI Recommendations")
+        console.print("[*] Phase 3: AI Recommendations")
         try:
             from clawpwn.ai.llm import LLMClient
 
@@ -405,7 +462,8 @@ Provide the next safe, authorized, low-risk enumeration steps. Do not exploit. F
             "on",
         }
         if lookup_enabled and host_info.services:
-            console.print("[*] Phase 3: Vulnerability Lookup")
+            phase_num = 4 if web_services else 3
+            console.print(f"[*] Phase {phase_num}: Vulnerability Lookup")
             max_results = int(os.environ.get("CLAWPWN_VULN_MAX_RESULTS", "3"))
             try:
                 from clawpwn.modules.vulndb import VulnDBClient
@@ -438,10 +496,11 @@ Provide the next safe, authorized, low-risk enumeration steps. Do not exploit. F
             except Exception as e:
                 console.print(f"[yellow]Vulnerability lookup failed: {e}[/yellow]")
 
-        console.print(
-            "[yellow]No URL scheme detected. Web scan skipped; network discovery and enumeration completed.[/yellow]"
-        )
-        return []
+        if not web_services:
+            console.print(
+                "[yellow]No URL scheme detected and no web services found; network discovery and enumeration completed.[/yellow]"
+            )
+        return all_findings
 
     try:
         findings = asyncio.run(run_scan())
