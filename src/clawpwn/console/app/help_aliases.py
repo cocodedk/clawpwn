@@ -46,4 +46,13 @@ HELP_TOPIC_ALIASES: dict[str, str] = {
     "reconnaissance": "recon",
     "discover": "lan",
     "discovery": "lan",
+    "web": "scan",
+    "webscan": "scan",
+    "nuclei": "scan",
+    "feroxbuster": "scan",
+    "dirbuster": "scan",
+    "directory": "scan",
+    "ffuf": "scan",
+    "nikto": "scan",
+    "zap": "scan",
 }

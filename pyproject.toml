@@ -5,6 +5,7 @@ description = "AI-powered penetration testing tool"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=0.77.0",
     "typer>=0.15.0",
     "sqlalchemy>=2.0.0",
     "httpx>=0.28.0",

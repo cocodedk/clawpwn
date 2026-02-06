@@ -92,6 +92,19 @@ class CommandMixin:
 
         try:
             result = self.nli.process_command(text)
+
+            # Agent reasoning (shown before tool execution output)
+            reasoning = result.get("reasoning")
+            if isinstance(reasoning, str) and reasoning.strip():
+                self.console.print(f"[italic dim]{reasoning.strip()}[/italic dim]")
+
+            progress_updates = result.get("progress_updates")
+            progress_streamed = bool(result.get("progress_streamed"))
+            if isinstance(progress_updates, list) and not progress_streamed:
+                for item in progress_updates:
+                    if isinstance(item, str) and item.strip():
+                        self.console.print(f"[dim]{item.strip()}[/dim]")
+
             execution_note = result.get("execution_note")
             if isinstance(execution_note, str) and execution_note.strip():
                 self.console.print(f"[cyan]{execution_note.strip()}[/cyan]")
@@ -106,6 +119,21 @@ class CommandMixin:
                 self.console.print(f"[green]✓[/green] {result.get('response', '')}")
             else:
                 self.console.print(f"[yellow]![/yellow] {result.get('response', '')}")
+
+            # Tool suggestions from the agent
+            suggestions = result.get("suggestions")
+            if isinstance(suggestions, list) and suggestions:
+                self.console.print("\n[bold]Recommended tools:[/bold]")
+                for s in suggestions:
+                    name = s.get("name", "?")
+                    reason = s.get("reason", "")
+                    install = s.get("install_command", "")
+                    usage = s.get("example_usage", "")
+                    self.console.print(f"  [cyan]{name}[/cyan] — {reason}")
+                    if install:
+                        self.console.print(f"    Install: [dim]{install}[/dim]")
+                    if usage:
+                        self.console.print(f"    Usage:   [dim]{usage}[/dim]")
         except Exception as exc:
             self.console.print(f"[red]Error: {exc}[/red]")
 

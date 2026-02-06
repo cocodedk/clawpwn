@@ -17,6 +17,9 @@ class CommandCompleter(Completer):
             "-s",
             "--parallel",
             "-p",
+            "--web-tools",
+            "--web-timeout",
+            "--web-concurrency",
             "--auto",
         ],
         "lan": [
@@ -73,6 +76,7 @@ class CommandCompleter(Completer):
 
     DEPTH_VALUES = ["quick", "normal", "deep"]
     SCANNER_VALUES = ["rustscan", "masscan", "nmap"]
+    WEB_TOOL_VALUES = ["builtin", "nuclei", "feroxbuster", "ffuf", "nikto", "zap", "all"]
     FORMAT_VALUES = ["html", "pdf", "json", "md"]
     LEVEL_VALUES = ["DEBUG", "INFO", "WARNING", "ERROR"]
     CONFIG_ACTIONS = ["show", "edit", "init"]
@@ -117,6 +121,11 @@ class CommandCompleter(Completer):
             return
         if prev in ("--scanner", "-s"):
             for v in self.SCANNER_VALUES:
+                if v.startswith(last_word):
+                    yield Completion(v, start_position=start_position)
+            return
+        if prev == "--web-tools":
+            for v in self.WEB_TOOL_VALUES:
                 if v.startswith(last_word):
                     yield Completion(v, start_position=start_position)
             return

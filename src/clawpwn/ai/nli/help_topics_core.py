@@ -31,13 +31,18 @@ Examples:
   scan --depth deep         Full scan (slower)
   scan --scanner nmap       Use a different scanner
   scan --udp-full           Full UDP range (slow)
+  scan --web-tools all      Run builtin+nuclei+feroxbuster+ffuf+nikto+zap
+  scan --web-timeout 90     Increase timeout for slower web tools
+  scan --web-concurrency 20 Increase web worker threads
   scan --auto               AI-guided scan
   scan --verbose            More output
 
 Tips:
   - Use URLs for web targets, IPs for infra targets
   - Start shallow, then go deeper on confirmed services
+  - For web targets, start with --web-tools builtin,nuclei,feroxbuster
   - Results show in status; details in reports
+  - --verbose shows live tool progress and external commands
   - For host/IP scans from NLI, default profile is robust:
     scanner=nmap, depth=deep, verify_tcp=true, verbose=true
   - NLI prints what it runs plus a CLI equivalent line

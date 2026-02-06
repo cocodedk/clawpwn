@@ -32,7 +32,9 @@ class Scanner:
             all_findings.extend(await self.passive_scanner.scan_response(response))
 
         print("[*] Running active scan...")
-        all_findings.extend(await self.active_scanner.scan_target(target, config.depth))
+        all_findings.extend(
+            await self.active_scanner.scan_target(target, config.depth, config.scan_types)
+        )
 
         if self.session:
             for finding in all_findings:

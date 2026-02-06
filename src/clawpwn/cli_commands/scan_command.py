@@ -5,11 +5,20 @@ import time
 
 import typer
 
+from clawpwn.modules.webscan import (
+    WebScanConfig,
+    WebScanOrchestrator,
+    create_default_webscan_plugins,
+)
+
 from .deps import cli_module
 from .scan_helpers import (
+    coerce_positive_float,
     coerce_positive_int,
+    normalize_depth,
     normalize_scanner,
     normalize_verbose,
+    parse_web_tools,
     resolve_host_target,
     service_summary,
     web_services_payload,
@@ -39,6 +48,21 @@ def scan(
         "--udp-full",
         help="Scan full UDP range (1-65535); default is top common ports only",
     ),
+    web_tools: str = typer.Option(
+        "builtin",
+        "--web-tools",
+        help="Web scanners: builtin,nuclei,feroxbuster,ffuf,nikto,zap or all (comma-separated)",
+    ),
+    web_timeout: float = typer.Option(
+        45.0,
+        "--web-timeout",
+        help="Per-tool web scanner timeout in seconds",
+    ),
+    web_concurrency: int = typer.Option(
+        10,
+        "--web-concurrency",
+        help="Web scanner worker threads where supported",
+    ),
 ) -> None:
     """Start the scanning phase."""
     cli = cli_module()
@@ -63,16 +87,28 @@ def scan(
 
     async def run_scan():
         port_scanner_name = normalize_scanner(scanner)
+        effective_depth = normalize_depth(depth, default="normal")
         parallel_groups = coerce_positive_int(parallel, default=4)
+        selected_web_tools = parse_web_tools(web_tools)
+        effective_web_timeout = coerce_positive_float(web_timeout, default=45.0)
+        effective_web_concurrency = coerce_positive_int(web_concurrency, default=10)
 
-        web_scanner = cli.Scanner(project_dir)
         network = cli.NetworkDiscovery(project_dir)
+        web_orchestrator = WebScanOrchestrator(
+            plugins=create_default_webscan_plugins(project_dir, scanner_factory=cli.Scanner)
+        )
+        web_config = WebScanConfig(
+            depth=effective_depth,
+            timeout=effective_web_timeout,
+            concurrency=effective_web_concurrency,
+            verbose=effective_verbose,
+        )
 
         scan_started = time.perf_counter()
         host_target = resolve_host_target(target_url)
 
-        scan_type = "quick" if depth == "quick" else "normal"
-        full_scan = depth == "deep"
+        scan_type = "quick" if effective_depth == "quick" else "normal"
+        full_scan = effective_depth == "deep"
 
         if not has_scheme:
             ports_tcp = os.environ.get("CLAWPWN_MASSCAN_PORTS_TCP", "1-65535")
@@ -123,10 +159,18 @@ def scan(
         )
 
         if has_scheme:
-            config = cli.ScanConfig(target=target_url, depth=depth)
-            console.print(f"[*] Phase 2: Web Application Scanning ({depth} mode)")
+            console.print(f"[*] Phase 2: Web Application Scanning ({effective_depth} mode)")
+            console.print(f"[dim]Web tools: {', '.join(selected_web_tools)}[/dim]")
             web_started = time.perf_counter()
-            findings = await web_scanner.scan(target_url, config)
+            web_findings, web_errors = await web_orchestrator.scan_target_with_diagnostics(
+                target_url,
+                config=web_config,
+                tools=selected_web_tools,
+                progress=lambda msg: console.print(f"[dim]{msg}[/dim]"),
+            )
+            findings = [finding.to_scan_result() for finding in web_findings]
+            for error in web_errors:
+                console.print(f"[yellow]! {error.tool}: {error.message}[/yellow]")
             if effective_verbose:
                 elapsed = time.perf_counter() - web_started
                 console.print(f"[dim]Web scan completed in {elapsed:.2f}s[/dim]")
@@ -139,14 +183,22 @@ def scan(
             if service.name in ["http", "https", "http-proxy"]
         ]
         if web_services:
-            config = cli.ScanConfig(target=host_target, depth=depth)
             console.print(f"[*] Phase 2: Web Application Scanning ({len(web_services)} service(s))")
+            console.print(f"[dim]Web tools: {', '.join(selected_web_tools)}[/dim]")
             for service in web_services:
                 url = f"{detect_scheme(host_target, service.port, service)}://{host_target}:{service.port}"
                 console.print(f"[*] Scanning {url}...")
                 web_started = time.perf_counter()
-                findings = await web_scanner.scan(url, config)
+                web_findings, web_errors = await web_orchestrator.scan_target_with_diagnostics(
+                    url,
+                    config=web_config,
+                    tools=selected_web_tools,
+                    progress=lambda msg: console.print(f"[dim]{msg}[/dim]"),
+                )
+                findings = [finding.to_scan_result() for finding in web_findings]
                 all_findings.extend(findings)
+                for error in web_errors:
+                    console.print(f"[yellow]! {error.tool}: {error.message}[/yellow]")
                 if effective_verbose:
                     elapsed = time.perf_counter() - web_started
                     console.print(f"[dim]  Completed in {elapsed:.2f}s[/dim]")

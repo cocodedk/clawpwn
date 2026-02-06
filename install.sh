@@ -5,7 +5,7 @@ echo "=== ClawPwn Installer ==="
 echo ""
 
 # Get sudo upfront so we don't prompt multiple times
-echo "This installer needs sudo for: installing scanners, setting capabilities."
+echo "This installer needs sudo for: installing scanners and setting permissions."
 sudo -v || { echo "Error: sudo access required"; exit 1; }
 
 # Keep sudo alive in background
@@ -13,18 +13,18 @@ while true; do sudo -n true; sleep 50; kill -0 "$$" || exit; done 2>/dev/null &
 
 # Ensure uv is installed
 if ! command -v uv >/dev/null 2>&1; then
-  echo "[1/5] Installing uv..."
+  echo "[1/6] Installing uv..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
 else
-  echo "[1/5] uv already installed"
+  echo "[1/6] uv already installed"
 fi
 
 # Ensure Rust/cargo is installed
 if ! command -v cargo >/dev/null 2>&1; then
-  echo "[2/5] Installing Rust (cargo)..."
+  echo "[2/6] Installing Rust (cargo)..."
   curl -LsSf https://sh.rustup.rs | sh -s -- -y -q --default-toolchain stable
 else
-  echo "[2/5] Rust already installed"
+  echo "[2/6] Rust already installed"
 fi
 
 # Ensure PATH includes cargo and local bin
@@ -33,11 +33,11 @@ export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
 # Install ClawPwn
-echo "[3/5] Installing ClawPwn..."
+echo "[3/6] Installing ClawPwn..."
 uv tool install . --force --reinstall --refresh
 
 # Install scanners
-echo "[4/5] Installing scanners (nmap, masscan, rustscan)..."
+echo "[4/6] Installing scanners (nmap, masscan, rustscan)..."
 
 # nmap, masscan, and build tools via package manager
 if command -v apt-get >/dev/null 2>&1; then
@@ -68,8 +68,67 @@ for bin in nmap masscan rustscan; do
   fi
 done
 
+echo "[5/6] Installing web scanners (nuclei, feroxbuster, ffuf, nikto, zap support)..."
+
+# Install web scanner packages via package manager when available
+if command -v apt-get >/dev/null 2>&1; then
+  sudo apt-get install -y nikto ffuf feroxbuster >/dev/null 2>&1 || true
+  sudo apt-get install -y zaproxy >/dev/null 2>&1 || true
+elif command -v dnf >/dev/null 2>&1; then
+  sudo dnf install -y nikto ffuf feroxbuster zaproxy >/dev/null 2>&1 || true
+elif command -v yum >/dev/null 2>&1; then
+  sudo yum install -y nikto ffuf feroxbuster zaproxy >/dev/null 2>&1 || true
+elif command -v pacman >/dev/null 2>&1; then
+  sudo pacman -S --noconfirm nikto ffuf feroxbuster zaproxy >/dev/null 2>&1 || true
+elif command -v brew >/dev/null 2>&1; then
+  brew install nikto ffuf feroxbuster >/dev/null 2>&1 || true
+  brew install --cask owasp-zap >/dev/null 2>&1 || true
+fi
+
+# Ensure Go is present for fallback installs
+if ! command -v go >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get install -y golang-go >/dev/null 2>&1 || true
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y golang >/dev/null 2>&1 || true
+  elif command -v yum >/dev/null 2>&1; then
+    sudo yum install -y golang >/dev/null 2>&1 || true
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -S --noconfirm go >/dev/null 2>&1 || true
+  elif command -v brew >/dev/null 2>&1; then
+    brew install go >/dev/null 2>&1 || true
+  fi
+fi
+
+# Use local bin for Go-based tools
+mkdir -p "$HOME/.local/bin"
+export GOBIN="$HOME/.local/bin"
+
+# Install nuclei and ffuf via Go fallback when missing
+if ! command -v nuclei >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
+  echo "  Installing nuclei via go install..."
+  go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest >/dev/null 2>&1 || true
+fi
+if ! command -v ffuf >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
+  echo "  Installing ffuf via go install..."
+  go install github.com/ffuf/ffuf/v2@latest >/dev/null 2>&1 || true
+fi
+if ! command -v feroxbuster >/dev/null 2>&1; then
+  echo "  Installing feroxbuster via cargo..."
+  cargo install feroxbuster --quiet >/dev/null 2>&1 || cargo install feroxbuster >/dev/null 2>&1 || true
+fi
+
+# Verify web scanners
+for bin in nuclei feroxbuster ffuf nikto zap-baseline.py docker; do
+  if command -v "$bin" >/dev/null 2>&1; then
+    echo "  $bin: $(command -v "$bin")"
+  else
+    echo "  $bin: NOT FOUND (optional)"
+  fi
+done
+
 # Set up passwordless sudo for scanners (Linux only)
-echo "[5/5] Setting up scanner permissions..."
+echo "[6/6] Setting up scanner permissions..."
 if [ "$(uname)" = "Linux" ]; then
   # Get scanner paths
   nmap_path="$(command -v nmap 2>/dev/null || true)"

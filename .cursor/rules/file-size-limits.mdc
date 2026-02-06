@@ -1,5 +1,5 @@
 ---
-description: Keep files around 150 lines, split large files into submodules
+description: Keep files around 150 - 200 lines, split large files into submodules
 alwaysApply: true
 ---
 

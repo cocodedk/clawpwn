@@ -130,3 +130,11 @@ class ParseParamsMixin:
         if isinstance(value, str):
             return value.strip().lower() in {"1", "true", "yes", "on"}
         return default
+
+    def _param_float(self, params: dict[str, Any], key: str, default: float) -> float:
+        value = params.get(key, default)
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return default
+        return parsed if parsed > 0 else default

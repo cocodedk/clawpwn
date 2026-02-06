@@ -1,6 +1,9 @@
 """LLM client for ClawPwn AI integration."""
 
+from __future__ import annotations
+
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +17,10 @@ from clawpwn.config import (
     get_llm_provider,
     get_project_env_path,
 )
+
+# Default models per tier
+ROUTING_MODEL_DEFAULT = "claude-3-5-haiku-20241022"
+ANALYSIS_MODEL_DEFAULT = "claude-3-5-sonnet-20241022"
 
 
 class LLMClient:
@@ -48,8 +55,59 @@ class LLMClient:
         )
 
         self.base_url = get_llm_base_url(project_dir)
+        self.routing_model = os.environ.get("CLAWPWN_LLM_ROUTING_MODEL", ROUTING_MODEL_DEFAULT)
 
         self.client = httpx.Client(timeout=60.0)
+        self._anthropic_client: Any = None  # lazy-init SDK client
+
+    @property
+    def anthropic_sdk(self) -> Any:
+        """Lazy-initialised Anthropic SDK client."""
+        if self._anthropic_client is None:
+            import anthropic
+
+            kwargs: dict[str, Any] = {"api_key": self.api_key}
+            if self.base_url:
+                kwargs["base_url"] = self.base_url
+            self._anthropic_client = anthropic.Anthropic(**kwargs)
+        return self._anthropic_client
+
+    # ------------------------------------------------------------------
+    # Tool-use entry point (Anthropic SDK)
+    # ------------------------------------------------------------------
+
+    def chat_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        system_prompt: str | None = None,
+        *,
+        model: str | None = None,
+        max_tokens: int = 1024,
+    ) -> Any:
+        """Send a message with tool definitions via the Anthropic SDK.
+
+        Returns the raw ``anthropic.types.Message`` object so callers can
+        inspect ``stop_reason``, ``content`` blocks (text / tool_use), etc.
+        """
+        if self.provider != "anthropic":
+            raise RuntimeError("chat_with_tools requires the Anthropic provider")
+
+        kwargs: dict[str, Any] = {
+            "model": model or self.routing_model,
+            "max_tokens": max_tokens,
+            "messages": messages,
+            "tools": tools,
+        }
+        if system_prompt:
+            kwargs["system"] = [
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+        return self.anthropic_sdk.messages.create(**kwargs)
 
     def close(self) -> None:
         """Close the underlying HTTP client and release the connection pool."""
@@ -57,8 +115,12 @@ class LLMClient:
         if client is not None:
             client.close()
             self.client = None  # idempotent; avoid double-close and __del__ no-op
+        sdk = getattr(self, "_anthropic_client", None)
+        if sdk is not None:
+            sdk.close()
+            self._anthropic_client = None
 
-    def __enter__(self) -> "LLMClient":
+    def __enter__(self) -> LLMClient:
         return self
 
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:

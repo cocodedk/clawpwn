@@ -297,10 +297,11 @@ class TestLLMIntegration:
         """Test LLM client can be initialized with API keys."""
         from clawpwn.ai.llm import LLMClient
 
-        # Should initialize without error; use context manager to release connection pool
+        # mock_env_vars sets CLAWPWN_LLM_PROVIDER=openai for legacy NLI tests.
+        # Verify the client initialises using the configured provider.
         with LLMClient() as client:
-            assert client.provider == "anthropic"
-            assert client.api_key == "test-api-key"
+            assert client.provider == "openai"
+            assert client.api_key == "test-openai-key"
 
 
 class TestPerformance:

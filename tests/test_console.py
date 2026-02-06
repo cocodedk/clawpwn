@@ -97,6 +97,10 @@ class TestCommandCompleter:
         completions = self._get_completions("scan --scanner rust")
         assert "rustscan" in completions
 
+    def test_complete_web_tool_values(self) -> None:
+        completions = self._get_completions("scan --web-tools fer")
+        assert "feroxbuster" in completions
+
     def test_complete_empty_suggests_commands(self) -> None:
         completions = self._get_completions("")
         assert "scan" in completions
@@ -157,6 +161,40 @@ class TestConsoleAppBuiltins:
 
         app.console.print.assert_any_call("[dim]CLI equivalent: !scan[/dim]")
         app.console.print.assert_any_call("[green]✓[/green] Host scan complete.")
+
+    def test_invoke_nli_prints_progress_updates_when_not_streamed(self) -> None:
+        app = ConsoleApp(project_dir=None)
+        app.nli = Mock()
+        app.console = Mock()
+        app.nli.process_command.return_value = {
+            "success": True,
+            "response": "Done.",
+            "progress_updates": ["● [nuclei] started", "✓ [nuclei] completed: 2 findings (1.2s)"],
+            "progress_streamed": False,
+            "action": "scan",
+        }
+
+        app._invoke_nli("scan web")
+
+        app.console.print.assert_any_call("[dim]● [nuclei] started[/dim]")
+        app.console.print.assert_any_call("[dim]✓ [nuclei] completed: 2 findings (1.2s)[/dim]")
+
+    def test_invoke_nli_skips_progress_updates_when_already_streamed(self) -> None:
+        app = ConsoleApp(project_dir=None)
+        app.nli = Mock()
+        app.console = Mock()
+        app.nli.process_command.return_value = {
+            "success": True,
+            "response": "Done.",
+            "progress_updates": ["● [nuclei] started"],
+            "progress_streamed": True,
+            "action": "scan",
+        }
+
+        app._invoke_nli("scan web")
+
+        printed = [call.args[0] for call in app.console.print.call_args_list if call.args]
+        assert "[dim]● [nuclei] started[/dim]" not in printed
 
 
 class TestHistoryManager:

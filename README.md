@@ -40,46 +40,22 @@ For a global install and optional scanner setup:
 ./install.sh
 ```
 
-The installer may run on work or shared machines. It will **ask before changing any permissions**. See Permissions below.
+Installer behavior:
+- Installs ClawPwn via `uv tool install .`
+- Installs network scanners: `nmap`, `masscan`, `rustscan`
+- Attempts web scanner installs: `nuclei`, `feroxbuster`, `ffuf`, `nikto`, and ZAP support (`zap-baseline.py`/`docker`)
+- Configures Linux scanner permissions via sudoers (see below)
 
 ## Permissions
 
-Network scanners (masscan, rustscan) need **raw socket access** for SYN scans and service detection. The installer will **only change permissions with your consent**.
+On Linux, `install.sh` creates `/etc/sudoers.d/clawpwn-scanners` so `nmap`, `masscan`, and `rustscan` can run with passwordless sudo when needed.
 
-### What the installer can do (Linux only)
-
-If you answer **y** when asked, it runs:
+To remove this later:
 
 ```bash
-sudo setcap cap_net_raw+ep /path/to/masscan
-sudo setcap cap_net_raw+ep /path/to/rustscan
+sudo rm -f /etc/sudoers.d/clawpwn-scanners
+sudo visudo -c
 ```
-
-This grants **only** raw network access to those binaries. No user accounts or groups are modified.
-
-### If you skip
-
-Run scans with sudo:
-
-```bash
-sudo clawpwn scan
-```
-
-### Removing capabilities
-
-To revoke later:
-
-```bash
-sudo setcap -r /path/to/masscan
-sudo setcap -r /path/to/rustscan
-```
-
-### Summary
-
-| Binary   | Capability   | Purpose                          |
-|----------|--------------|----------------------------------|
-| masscan  | cap_net_raw  | Send/receive raw packets (SYN)   |
-| rustscan | cap_net_raw  | Send/receive raw packets (ports) |
 
 ## Setup Script
 

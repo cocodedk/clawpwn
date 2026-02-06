@@ -7,6 +7,8 @@ from clawpwn.modules.network import HostInfo, ServiceInfo
 
 from .shared import detect_scheme
 
+WEB_TOOLS = ("builtin", "nuclei", "feroxbuster", "ffuf", "nikto", "zap")
+
 
 def normalize_verbose(verbose: bool) -> bool:
     """Resolve effective verbose flag from CLI arg and env var."""
@@ -39,6 +41,13 @@ def coerce_nonnegative_int(value: int, default: int) -> int:
     return max(0, int(value)) if isinstance(value, int) else default
 
 
+def coerce_positive_float(value: float, default: float) -> float:
+    """Return value when positive float-like, otherwise fallback default."""
+    if isinstance(value, (int, float)):
+        return max(0.1, float(value))
+    return default
+
+
 def resolve_host_target(target_url: str) -> str:
     """Extract host/IP from URL-like targets for port scanning."""
     if "://" not in target_url:
@@ -46,6 +55,45 @@ def resolve_host_target(target_url: str) -> str:
 
     parsed = urlparse(target_url)
     return parsed.hostname or target_url
+
+
+def parse_web_tools(raw: str | None) -> list[str]:
+    """Normalize --web-tools option into ordered unique tool names."""
+    if raw is None or not isinstance(raw, str):
+        return ["builtin"]
+    cleaned = raw.strip().lower()
+    if not cleaned:
+        return ["builtin"]
+
+    aliases = {
+        "owasp-zap": "zap",
+        "zap-baseline": "zap",
+        "default": "builtin",
+        "dirbuster": "feroxbuster",
+        "dirb": "feroxbuster",
+    }
+    selected: list[str] = []
+    unknown: list[str] = []
+    for item in cleaned.split(","):
+        token = aliases.get(item.strip(), item.strip())
+        if not token:
+            continue
+        if token == "all":
+            selected = list(WEB_TOOLS)
+            continue
+        if token not in WEB_TOOLS:
+            unknown.append(token)
+            continue
+        if token not in selected:
+            selected.append(token)
+
+    if unknown:
+        supported = ", ".join(WEB_TOOLS)
+        raise ValueError(
+            f"Unknown web scanner tool(s): {', '.join(sorted(set(unknown)))}. "
+            f"Supported values: {supported}, all."
+        )
+    return selected or ["builtin"]
 
 
 def service_summary(host_info: HostInfo) -> str:
