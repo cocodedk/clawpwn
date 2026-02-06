@@ -10,3 +10,9 @@ Thanks for your interest in contributing. Please open issues or PRs as usual; fo
 - For the full workflow (including untracking if needed, purging history if credentials were committed, and who may access artifacts), see **[SECURITY.md](SECURITY.md)**.
 
 Keeping these artifacts out of the repo and in designated secure storage protects sensitive findings and credentials and keeps the repository safe to share and fork.
+
+## PR Checklist
+- [ ] Tests run (`uv run pytest`) or a clear note why not.
+- [ ] If CLI commands changed: NLI intent list + handlers updated.
+- [ ] If CLI commands changed: console router/completions updated.
+- [ ] Help examples updated to match the current behavior.

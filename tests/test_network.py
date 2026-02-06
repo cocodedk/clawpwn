@@ -108,3 +108,25 @@ async def test_tcp_connect_fallback_when_masscan_empty(monkeypatch):
     assert 22 in info.open_ports
     assert any(service.name == "ssh" for service in info.services)
     assert "fallback" in (info.notes or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_parallel_scan_errors_are_not_silent(monkeypatch):
+    """Parallel port-range scan should fail when scanner errors occur."""
+
+    discovery = network_module.NetworkDiscovery(project_dir=None)
+    monkeypatch.setattr(network_module, "can_raw_scan", lambda _: True)
+
+    async def failing_scan(*args, **kwargs):
+        raise RuntimeError("scanner failed")
+
+    monkeypatch.setattr(discovery, "_run_port_scan", failing_scan)
+    monkeypatch.setattr(discovery, "_get_port_scanner", lambda _scanner_type: object())
+
+    with pytest.raises(RuntimeError, match="Port scan failed for"):
+        await discovery.scan_host(
+            "1.2.3.4",
+            scanner_type="rustscan",
+            ports_tcp="1-100",
+            parallel_groups=4,
+        )

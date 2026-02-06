@@ -19,6 +19,42 @@ class CommandCompleter(Completer):
             "-p",
             "--auto",
         ],
+        "lan": [
+            "--range",
+            "-r",
+            "--scan-hosts",
+            "--depth",
+            "-d",
+            "--verbose",
+            "-v",
+            "--scanner",
+            "-s",
+            "--parallel",
+            "-p",
+            "--verify-tcp",
+            "--udp",
+            "--udp-full",
+            "--max-hosts",
+            "--concurrency",
+        ],
+        "discover": [
+            "--range",
+            "-r",
+            "--scan-hosts",
+            "--depth",
+            "-d",
+            "--verbose",
+            "-v",
+            "--scanner",
+            "-s",
+            "--parallel",
+            "-p",
+            "--verify-tcp",
+            "--udp",
+            "--udp-full",
+            "--max-hosts",
+            "--concurrency",
+        ],
         "target": [],
         "status": [],
         "killchain": ["--auto", "--target"],
@@ -30,6 +66,9 @@ class CommandCompleter(Completer):
         "list-projects": [],
         "console": [],
         "interactive": [],
+        "restart": [],
+        "objective": ["show", "set", "clear"],
+        "memory": ["show", "clear", "--limit"],
     }
 
     DEPTH_VALUES = ["quick", "normal", "deep"]
@@ -37,6 +76,8 @@ class CommandCompleter(Completer):
     FORMAT_VALUES = ["html", "pdf", "json", "md"]
     LEVEL_VALUES = ["DEBUG", "INFO", "WARNING", "ERROR"]
     CONFIG_ACTIONS = ["show", "edit", "init"]
+    OBJECTIVE_ACTIONS = ["show", "set", "clear"]
+    MEMORY_ACTIONS = ["show", "clear"]
 
     def get_completions(self, document: Document, complete_event):  # noqa: D401
         """Yield completions for the current input."""
@@ -91,6 +132,16 @@ class CommandCompleter(Completer):
             return
         if first == "config" and len(words) == 2:
             for a in self.CONFIG_ACTIONS:
+                if a.startswith(last_word):
+                    yield Completion(a, start_position=start_position)
+            return
+        if first == "objective" and len(words) == 2:
+            for a in self.OBJECTIVE_ACTIONS:
+                if a.startswith(last_word):
+                    yield Completion(a, start_position=start_position)
+            return
+        if first == "memory" and len(words) == 2:
+            for a in self.MEMORY_ACTIONS:
                 if a.startswith(last_word):
                     yield Completion(a, start_position=start_position)
             return

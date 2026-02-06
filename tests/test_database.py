@@ -205,6 +205,36 @@ class TestSessionManager:
         assert state.critical_count == 1
         assert state.high_count == 1
 
+    def test_project_memory_round_trip(self, session_manager: SessionManager):
+        """Test setting and clearing project memory."""
+        session_manager.create_project("/tmp/test_project")
+        memory = session_manager.get_memory()
+        assert memory is not None
+        assert memory.objective == ""
+        assert memory.summary == ""
+
+        session_manager.set_objective("Test objective")
+        session_manager.update_summary("Test summary")
+        memory = session_manager.get_memory()
+        assert memory.objective == "Test objective"
+        assert memory.summary == "Test summary"
+
+        session_manager.clear_memory()
+        memory = session_manager.get_memory()
+        assert memory.objective == ""
+        assert memory.summary == ""
+
+    def test_message_storage(self, session_manager: SessionManager):
+        """Test storing and retrieving conversation messages."""
+        session_manager.create_project("/tmp/test_project")
+        session_manager.add_message("user", "hello")
+        session_manager.add_message("assistant", "hi")
+
+        assert session_manager.get_message_count() == 2
+        recent = session_manager.get_recent_messages(limit=2)
+        roles = [m.role for m in recent]
+        assert "user" in roles and "assistant" in roles
+
 
 class TestDatabaseRelationships:
     """Test database relationships."""

@@ -19,6 +19,8 @@ class InputRouter:
         "scan",
         "target",
         "status",
+        "discover",
+        "lan",
         "killchain",
         "report",
         "logs",
@@ -28,6 +30,8 @@ class InputRouter:
         "list-projects",
         "console",
         "interactive",
+        "objective",
+        "memory",
     }
 
     def __init__(self, mode: InputMode = InputMode.AUTO) -> None:

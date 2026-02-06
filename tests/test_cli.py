@@ -246,3 +246,101 @@ class TestTyperAppStructure:
         from clawpwn.cli import main
 
         assert callable(main)
+
+
+def test_objective_set_and_show(monkeypatch, temp_dir: Path, capsys):
+    from clawpwn import cli as cli_module
+    from clawpwn.config import get_project_db_path
+    from clawpwn.modules.session import SessionManager
+
+    project_path = _make_fake_project(temp_dir)
+    monkeypatch.setattr(cli_module, "require_project", lambda: project_path)
+
+    db_path = get_project_db_path(project_path)
+    session = SessionManager(db_path)
+    session.create_project(str(project_path))
+
+    cli_module.objective(action="show", text=None)
+    out = capsys.readouterr().out
+    assert "No objective set" in out
+
+    cli_module.objective(action="set", text="Focus on login flow")
+    cli_module.objective(action="show", text=None)
+    out = capsys.readouterr().out
+    assert "Objective" in out
+    assert "Focus on login flow" in out
+
+
+def test_memory_show_and_clear(monkeypatch, temp_dir: Path, capsys):
+    from clawpwn import cli as cli_module
+    from clawpwn.config import get_project_db_path
+    from clawpwn.modules.session import SessionManager
+
+    project_path = _make_fake_project(temp_dir)
+    monkeypatch.setattr(cli_module, "require_project", lambda: project_path)
+
+    db_path = get_project_db_path(project_path)
+    session = SessionManager(db_path)
+    session.create_project(str(project_path))
+    session.add_message("user", "hello")
+    session.add_message("assistant", "hi")
+
+    cli_module.memory(action="show", limit=2)
+    out = capsys.readouterr().out
+    assert "Recent messages" in out
+    assert "hello" in out
+
+    cli_module.memory(action="clear", limit=2)
+    out = capsys.readouterr().out
+    assert "Memory cleared" in out
+
+
+def test_lan_discover_hosts_only(monkeypatch, temp_dir: Path, capsys):
+    from clawpwn import cli as cli_module
+    from clawpwn.modules import network as network_module
+
+    project_path = _make_fake_project(temp_dir)
+    monkeypatch.setattr(cli_module, "require_project", lambda: project_path)
+
+    async def fake_discover_hosts(self, network: str):
+        assert network == "192.168.1.0/24"
+        return ["192.168.1.10", "192.168.1.11"]
+
+    monkeypatch.setattr(network_module.NetworkDiscovery, "discover_hosts", fake_discover_hosts)
+
+    cli_module.discover(network="192.168.1.0/24", scan_hosts=False)
+
+    out = capsys.readouterr().out
+    assert "Discovery complete" in out
+    assert "192.168.1.10" in out
+
+
+def test_lan_discover_scans_hosts(monkeypatch, temp_dir: Path, capsys):
+    from clawpwn import cli as cli_module
+    from clawpwn.modules import network as network_module
+
+    project_path = _make_fake_project(temp_dir)
+    monkeypatch.setattr(cli_module, "require_project", lambda: project_path)
+
+    async def fake_discover_hosts(self, network: str):
+        return ["192.168.1.10"]
+
+    async def fake_scan_host(*args, **kwargs):
+        return HostInfo(ip="192.168.1.10", open_ports=[80], services=[])
+
+    monkeypatch.setattr(network_module.NetworkDiscovery, "discover_hosts", fake_discover_hosts)
+    monkeypatch.setattr(network_module.NetworkDiscovery, "scan_host", fake_scan_host)
+
+    cli_module.discover(
+        network="192.168.1.0/24",
+        scan_hosts=True,
+        depth="quick",
+        scanner="rustscan",
+        parallel=1,
+        concurrency=1,
+        udp=False,
+        verify_tcp=False,
+    )
+
+    out = capsys.readouterr().out
+    assert "Host scans complete" in out

@@ -19,6 +19,9 @@
 - Python 3.12+; 4-space indentation.
 - Linting/formatting via `ruff` (line length 100, `src/` and `tests/`).
 - Module names are lowercase; classes use `CamelCase`; functions/vars use `snake_case`.
+- Target 150-200 lines per file maximum.
+- If a file grows beyond 200 lines, split it into a submodule folder and re-export public APIs from `__init__.py`.
+- Keep features modular by separating parsing, handlers, and data/constants into focused files.
 
 ## Testing Guidelines
 - Framework: `pytest` with `pytest-asyncio` for async tests.
@@ -34,6 +37,14 @@
 ## Security & Configuration Tips
 - Copy `.env.example` to `.env` and set required values.
 - Scanners may need raw socket access; `./install.sh` will ask before setting capabilities.
+
+## Capability Sync Rules
+- When adding/removing CLI commands, update:
+  - NLI intent list + handlers in `src/clawpwn/ai/nli/` (module package)
+  - Console routing/completions in `src/clawpwn/console/router.py` and `src/clawpwn/console/completer.py`
+  - Console/NLI help topics if user-visible behavior changes
+- When changing NLI behavior, ensure the LLM system prompt reflects current capabilities.
+- Keep help examples aligned with actual commands and flags.
 
 ## Agent Communication Style
 - Use short phrases and avoid flooding the user with text.

@@ -35,6 +35,12 @@ class Project(Base):
     # Relationships
     findings = relationship("Finding", back_populates="project", cascade="all, delete-orphan")
     logs = relationship("Log", back_populates="project", cascade="all, delete-orphan")
+    memory = relationship(
+        "ProjectMemory", back_populates="project", cascade="all, delete-orphan", uselist=False
+    )
+    messages = relationship(
+        "ConversationMessage", back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class Finding(Base):
@@ -79,6 +85,34 @@ class Log(Base):
 
     # Relationship
     project = relationship("Project", back_populates="logs")
+
+
+class ProjectMemory(Base):
+    """Persistent memory for a project (summary + objective)."""
+
+    __tablename__ = "project_memory"
+
+    project_id = Column(Integer, ForeignKey("projects.id"), primary_key=True)
+    objective = Column(Text, default="")
+    summary = Column(Text, default="")
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
+
+    project = relationship("Project", back_populates="memory")
+
+
+class ConversationMessage(Base):
+    """Conversation messages stored for project memory."""
+
+    __tablename__ = "conversation_messages"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+
+    role = Column(String, default="user")  # user | assistant | system
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+
+    project = relationship("Project", back_populates="messages")
 
 
 class ProjectState:

@@ -1,10 +1,12 @@
 """Tests for the ClawPwn interactive console."""
 
 from pathlib import Path
+from unittest.mock import Mock
 
 from prompt_toolkit.document import Document
 from prompt_toolkit.history import FileHistory
 
+from clawpwn.console.app import ConsoleApp
 from clawpwn.console.completer import CommandCompleter
 from clawpwn.console.history import HistoryManager
 from clawpwn.console.router import InputMode, InputRouter
@@ -98,8 +100,63 @@ class TestCommandCompleter:
     def test_complete_empty_suggests_commands(self) -> None:
         completions = self._get_completions("")
         assert "scan" in completions
+        assert "restart" in completions
         assert "target" in completions
         assert "status" in completions
+
+
+class TestConsoleAppBuiltins:
+    """Tests for built-in console commands."""
+
+    def test_restart_builtin_sets_restart_flag(self) -> None:
+        app = ConsoleApp(project_dir=None)
+        app.running = True
+
+        handled = app._handle_builtin("restart")
+
+        assert handled is True
+        assert app.running is False
+        assert app.restart_requested is True
+
+    def test_invoke_nli_prints_executed_command(self) -> None:
+        app = ConsoleApp(project_dir=None)
+        app.nli = Mock()
+        app.console = Mock()
+        app.nli.process_command.return_value = {
+            "success": True,
+            "response": "Host scan complete.",
+            "execution_note": "Running host scan on 172.17.0.2 (nmap, deep, verbose).",
+            "executed_command": "!scan --scanner nmap --depth deep --verbose",
+        }
+
+        app._invoke_nli("find open ports")
+
+        app.console.print.assert_any_call(
+            "[cyan]Running host scan on 172.17.0.2 (nmap, deep, verbose).[/cyan]"
+        )
+        app.console.print.assert_any_call(
+            "[dim]CLI equivalent: !scan --scanner nmap --depth deep --verbose[/dim]"
+        )
+        app.console.print.assert_any_call("[green]✓[/green] Host scan complete.")
+
+    def test_resolve_help_topic_maps_restart_alias(self) -> None:
+        app = ConsoleApp(project_dir=None)
+        assert app._resolve_help_topic("restart") == "console"
+
+    def test_invoke_nli_uses_fallback_command_when_missing_metadata(self) -> None:
+        app = ConsoleApp(project_dir=None)
+        app.nli = Mock()
+        app.console = Mock()
+        app.nli.process_command.return_value = {
+            "success": True,
+            "response": "Host scan complete.",
+            "action": "scan",
+        }
+
+        app._invoke_nli("find open ports")
+
+        app.console.print.assert_any_call("[dim]CLI equivalent: !scan[/dim]")
+        app.console.print.assert_any_call("[green]✓[/green] Host scan complete.")
 
 
 class TestHistoryManager:
