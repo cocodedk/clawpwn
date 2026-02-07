@@ -70,10 +70,33 @@ def dispatch_tool(name: str, params: dict[str, Any], project_dir: Path) -> str:
     Unknown tool names and execution errors are returned as error text
     (not raised) so Claude can react gracefully.
     """
+    import time
+
+    from clawpwn.utils.debug import debug_tool_execution, is_debug_enabled
+
+    # Log tool start if debug enabled
+    if is_debug_enabled():
+        debug_tool_execution(tool_name=name, params=params, start=True)
+
+    start_time = time.time()
     executor = TOOL_EXECUTORS.get(name)
     if executor is None:
-        return f"Unknown tool: {name}"
-    try:
-        return executor(params, project_dir)
-    except Exception as exc:
-        return enrich_missing_tool_error(f"Tool '{name}' failed: {exc}")
+        result = f"Unknown tool: {name}"
+    else:
+        try:
+            result = executor(params, project_dir)
+        except Exception as exc:
+            result = enrich_missing_tool_error(f"Tool '{name}' failed: {exc}")
+
+    # Log tool completion if debug enabled
+    if is_debug_enabled():
+        elapsed = time.time() - start_time
+        debug_tool_execution(
+            tool_name=name,
+            params=params,
+            start=False,
+            elapsed=elapsed,
+            result_size=len(result) if result else 0,
+        )
+
+    return result

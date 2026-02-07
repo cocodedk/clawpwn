@@ -115,7 +115,50 @@ Modes:
 
 Notes:
   - NLI requires a project and LLM config
-  - If NLI is unavailable, use CLI commands""",
+  - If NLI is unavailable, use CLI commands
+  - For troubleshooting: enable debug (see help debug)""",
+    "debug": """Debug mode:
+Enable detailed visibility into NLI agent decisions in your current console session.
+
+Commands:
+  enable debug    Turn on debug logging
+  disable debug   Turn off debug logging
+
+What debug mode shows:
+  - LLM requests: model used, system prompt size, tools available, user message
+  - LLM responses: stop reason, content types (text/tool_use), token usage (input/output)
+  - Agent decisions: round number, project context, fast-path choices
+  - Tool execution: tool name, parameters, execution time, result size
+
+Example session:
+  clawpwn> enable debug
+  ✓ Debug mode enabled
+
+  clawpwn> scan http://example.com
+
+  [DEBUG:llm] → claude-3-5-sonnet-20241022 (max_tokens=1024)
+    System: 485 chars
+    Tools: web_scan, network_scan, check_status, +6 more
+
+  [DEBUG:llm] ← stop_reason=tool_use
+    Content: tool_use
+    Tokens: 1245↓/87↑/1332 total
+
+  → web_scan(target='http://example.com', depth='normal')
+
+  [DEBUG:tool] dispatch_tool(web_scan) +0.0s
+    Params: {target: 'http://example.com', ...}
+
+  [DEBUG:tool] dispatch_tool(web_scan) completed +12.3s
+    Result: 234 chars
+
+  clawpwn> disable debug
+  ✓ Debug mode disabled
+
+Tips:
+  - Debug mode is per-session (doesn't persist across restarts)
+  - Use when commands aren't behaving as expected
+  - Helpful for understanding which tools the agent chooses and why""",
     "console": """Console command:
 The interactive console cannot be started from inside itself.
 

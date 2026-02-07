@@ -47,6 +47,7 @@ class NaturalLanguageInterface(
         self.context: dict[str, Any] = {}
         self.session_manager = None
         self._tool_agent: Any = None  # lazy-init ToolUseAgent
+        self.debug_enabled = False  # session-level debug toggle
         db_path = get_project_db_path(project_dir)
         if db_path:
             self.session_manager = SessionManager(db_path)
@@ -77,6 +78,23 @@ class NaturalLanguageInterface(
 
     def process_command(self, command: str) -> dict[str, Any]:
         # ---- Fast-path local checks (no LLM needed) ----
+        # Check for debug toggle commands
+        cmd_lower = command.lower().strip()
+        if cmd_lower in ("enable debug", "debug on", "turn on debug"):
+            self.debug_enabled = True
+            return {
+                "success": True,
+                "response": "✓ Debug mode enabled. LLM requests and agent decisions will be shown.",
+                "action": "debug_toggle",
+            }
+        if cmd_lower in ("disable debug", "debug off", "turn off debug"):
+            self.debug_enabled = False
+            return {
+                "success": True,
+                "response": "✓ Debug mode disabled.",
+                "action": "debug_toggle",
+            }
+
         if self._is_help_query(command):
             topic = self._extract_help_topic(command)
             if topic:
@@ -102,7 +120,7 @@ class NaturalLanguageInterface(
     def _process_via_agent(self, command: str) -> dict[str, Any]:
         """Route through the Claude tool-use agent."""
         try:
-            result = self.tool_agent.run(command)
+            result = self.tool_agent.run(command, debug=self.debug_enabled)
             self._record_interaction(command, result.get("response", ""))
             return result
         except Exception as e:

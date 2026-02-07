@@ -73,11 +73,17 @@ class ToolUseAgent:
     # Public API
     # ------------------------------------------------------------------
 
-    def run(self, user_message: str) -> dict[str, Any]:
+    def run(self, user_message: str, debug: bool = False) -> dict[str, Any]:
         """Process a single user message through the tool-use loop.
 
         Returns a result dict compatible with the existing NLI response format.
         """
+        # Set thread-local debug state
+        if debug:
+            from clawpwn.utils.debug import debug_agent_round, set_debug_enabled
+
+            set_debug_enabled(True)
+
         messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
         progress_updates: list[str] = []
         action = "unknown"
@@ -87,11 +93,22 @@ class ToolUseAgent:
         model_used: str | None = None
 
         for _round in range(MAX_TOOL_ROUNDS):
+            # Log the agent round if debug is enabled
+            if debug:
+                context_info = None
+                context_str = self._get_project_context()
+                if context_str:
+                    # Simplify for display
+                    lines = context_str.split("\n")
+                    context_info = ", ".join(lines)
+                debug_agent_round(round_num=_round + 1, context_info=context_info)
+
             response = self.llm.chat_with_tools(
                 messages=messages,
                 tools=self._tools,
                 system_prompt=self._system_prompt,
                 max_tokens=ROUTING_MAX_TOKENS,
+                debug=debug,
             )
             model_used = getattr(response, "model", None)
 
@@ -143,6 +160,11 @@ class ToolUseAgent:
 
                 # Fast-path: skip analysis round-trip for simple tools
                 if tool_name in FAST_PATH_TOOLS and len(tool_calls) == 1:
+                    if debug:
+                        debug_agent_round(
+                            round_num=_round + 1,
+                            decision=f"fast-path: single {tool_name} call, skipping analysis",
+                        )
                     return self._build_result(
                         success=True,
                         text=result_text,

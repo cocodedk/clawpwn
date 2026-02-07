@@ -31,6 +31,7 @@ class ConsoleApp(HelpMixin, CommandMixin, RuntimeMixin):
         self.router = InputRouter(mode=InputMode.AUTO)
         self.running = False
         self.restart_requested = False
+        self.debug_enabled = False
 
         if not project_dir:
             return
