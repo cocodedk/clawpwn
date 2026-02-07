@@ -68,21 +68,40 @@ for bin in nmap masscan rustscan; do
   fi
 done
 
-echo "[5/6] Installing web scanners (nuclei, feroxbuster, ffuf, nikto, zap support)..."
+echo "[5/6] Installing web scanners (nuclei, feroxbuster, ffuf, nikto, sqlmap, testssl, wpscan, zap)..."
 
 # Install web scanner packages via package manager when available
 if command -v apt-get >/dev/null 2>&1; then
-  sudo apt-get install -y nikto ffuf feroxbuster >/dev/null 2>&1 || true
+  sudo apt-get install -y nikto ffuf feroxbuster sqlmap testssl.sh >/dev/null 2>&1 || true
   sudo apt-get install -y zaproxy >/dev/null 2>&1 || true
 elif command -v dnf >/dev/null 2>&1; then
-  sudo dnf install -y nikto ffuf feroxbuster zaproxy >/dev/null 2>&1 || true
+  sudo dnf install -y nikto ffuf feroxbuster sqlmap testssl zaproxy >/dev/null 2>&1 || true
 elif command -v yum >/dev/null 2>&1; then
-  sudo yum install -y nikto ffuf feroxbuster zaproxy >/dev/null 2>&1 || true
+  sudo yum install -y nikto ffuf feroxbuster sqlmap testssl zaproxy >/dev/null 2>&1 || true
 elif command -v pacman >/dev/null 2>&1; then
-  sudo pacman -S --noconfirm nikto ffuf feroxbuster zaproxy >/dev/null 2>&1 || true
+  sudo pacman -S --noconfirm nikto ffuf feroxbuster sqlmap zaproxy >/dev/null 2>&1 || true
 elif command -v brew >/dev/null 2>&1; then
-  brew install nikto ffuf feroxbuster >/dev/null 2>&1 || true
+  brew install nikto ffuf feroxbuster sqlmap testssl >/dev/null 2>&1 || true
   brew install --cask owasp-zap >/dev/null 2>&1 || true
+fi
+
+# wpscan via gem (Ruby-based)
+if ! command -v wpscan >/dev/null 2>&1; then
+  if command -v gem >/dev/null 2>&1; then
+    echo "  Installing wpscan via gem..."
+    sudo gem install wpscan --no-document >/dev/null 2>&1 || true
+  fi
+fi
+
+# testssl.sh fallback via git if package not available
+if ! command -v testssl.sh >/dev/null 2>&1 && ! command -v testssl >/dev/null 2>&1; then
+  echo "  Installing testssl.sh via git..."
+  if [ ! -d "$HOME/.local/share/testssl.sh" ]; then
+    git clone --depth 1 https://github.com/drwetter/testssl.sh.git "$HOME/.local/share/testssl.sh" >/dev/null 2>&1 || true
+  fi
+  if [ -f "$HOME/.local/share/testssl.sh/testssl.sh" ]; then
+    ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh" 2>/dev/null || true
+  fi
 fi
 
 # Ensure Go is present for fallback installs
@@ -118,8 +137,14 @@ if ! command -v feroxbuster >/dev/null 2>&1; then
   cargo install feroxbuster --quiet >/dev/null 2>&1 || cargo install feroxbuster >/dev/null 2>&1 || true
 fi
 
+# sqlmap fallback via uv tool (Python-based, doesn't need sudo)
+if ! command -v sqlmap >/dev/null 2>&1; then
+  echo "  Installing sqlmap via uv tool..."
+  uv tool install sqlmap >/dev/null 2>&1 || true
+fi
+
 # Verify web scanners
-for bin in nuclei feroxbuster ffuf nikto zap-baseline.py docker; do
+for bin in nuclei feroxbuster ffuf nikto sqlmap wpscan testssl.sh docker; do
   if command -v "$bin" >/dev/null 2>&1; then
     echo "  $bin: $(command -v "$bin")"
   else

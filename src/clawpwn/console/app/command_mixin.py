@@ -91,19 +91,24 @@ class CommandMixin:
             return
 
         try:
+            # Register live progress callback so tool calls print immediately
+            self._register_live_progress()
+
             result = self.nli.process_command(text)
 
-            # Agent reasoning (shown before tool execution output)
-            reasoning = result.get("reasoning")
-            if isinstance(reasoning, str) and reasoning.strip():
-                self.console.print(f"[italic dim]{reasoning.strip()}[/italic dim]")
-
-            progress_updates = result.get("progress_updates")
+            # Show reasoning/progress only if not already streamed live
             progress_streamed = bool(result.get("progress_streamed"))
-            if isinstance(progress_updates, list) and not progress_streamed:
-                for item in progress_updates:
-                    if isinstance(item, str) and item.strip():
-                        self.console.print(f"[dim]{item.strip()}[/dim]")
+
+            if not progress_streamed:
+                reasoning = result.get("reasoning")
+                if isinstance(reasoning, str) and reasoning.strip():
+                    self.console.print(f"[italic dim]{reasoning.strip()}[/italic dim]")
+
+                progress_updates = result.get("progress_updates")
+                if isinstance(progress_updates, list):
+                    for item in progress_updates:
+                        if isinstance(item, str) and item.strip():
+                            self.console.print(f"[dim]{item.strip()}[/dim]")
 
             execution_note = result.get("execution_note")
             if isinstance(execution_note, str) and execution_note.strip():
@@ -119,6 +124,11 @@ class CommandMixin:
                 self.console.print(f"[green]✓[/green] {result.get('response', '')}")
             else:
                 self.console.print(f"[yellow]![/yellow] {result.get('response', '')}")
+
+            # Show which model was used
+            model = result.get("model")
+            if isinstance(model, str) and model:
+                self.console.print(f"[dim]model: {model}[/dim]")
 
             # Tool suggestions from the agent
             suggestions = result.get("suggestions")
@@ -136,6 +146,26 @@ class CommandMixin:
                         self.console.print(f"    Usage:   [dim]{usage}[/dim]")
         except Exception as exc:
             self.console.print(f"[red]Error: {exc}[/red]")
+
+    def _register_live_progress(self) -> None:
+        """Attach a live progress callback to the NLI tool agent."""
+        if not self.nli or not getattr(self.nli, "_use_tool_agent", False):
+            return
+        try:
+            agent = self.nli.tool_agent
+            console = self.console
+
+            def _on_progress(msg: str) -> None:
+                if msg.startswith("→"):
+                    console.print(f"[cyan]{msg}[/cyan]")
+                elif msg.startswith("✓"):
+                    console.print(f"[green]{msg}[/green]")
+                else:
+                    console.print(f"[italic dim]{msg}[/italic dim]")
+
+            agent.on_progress = _on_progress
+        except Exception:
+            pass
 
     def _fallback_cli_equivalent(self, text: str, result: dict[str, object]) -> str:
         """Build a best-effort CLI equivalent when NLI metadata is missing."""

@@ -43,8 +43,8 @@ class SqlmapWebScannerPlugin(WebScannerPlugin):
             command = self._build_command(binary, target, config, tmpdir)
             result = await self._runner(
                 command,
-                timeout=max(120.0, config.timeout * 3),
-                allowed_exit_codes=(0, 1),
+                timeout=max(300.0, config.timeout * 5),
+                allowed_exit_codes=(0, 1, 2, 3, 4, 5, 6, 7, 8),
                 verbose=config.verbose,
             )
             assert isinstance(result, CommandResult)

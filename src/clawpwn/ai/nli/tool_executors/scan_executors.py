@@ -37,11 +37,18 @@ def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
         depth=depth,
         timeout=timeout,
         concurrency=concurrency,
-        verbose=False,
+        verbose=True,
         scan_types=scan_types,
     )
+
+    # Print plugin progress live to stdout
+    def _progress(msg: str) -> None:
+        print(msg)
+
     findings, errors = safe_async_run(
-        orchestrator.scan_target_with_diagnostics(target, config=config, tools=tools_list)
+        orchestrator.scan_target_with_diagnostics(
+            target, config=config, tools=tools_list, progress=_progress
+        )
     )
 
     return _format_scan_findings(findings, errors, target)

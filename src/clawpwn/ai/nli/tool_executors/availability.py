@@ -36,7 +36,22 @@ EXTERNAL_TOOLS: dict[str, dict[str, str]] = {
 
 def check_tool_availability() -> dict[str, bool]:
     """Return {tool_name: is_installed} for every known external tool."""
-    return {name: shutil.which(info["binary"]) is not None for name, info in EXTERNAL_TOOLS.items()}
+    return {name: _find_binary(info["binary"]) is not None for name, info in EXTERNAL_TOOLS.items()}
+
+
+def _find_binary(name: str) -> str | None:
+    """Find a binary via PATH + common install locations."""
+    import os
+
+    found = shutil.which(name)
+    if found:
+        return found
+    home = Path.home()
+    for d in [home / ".local" / "bin", home / ".cargo" / "bin", Path("/usr/local/bin")]:
+        candidate = d / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
 
 
 def format_availability_report() -> str:

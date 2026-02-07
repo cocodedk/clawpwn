@@ -19,8 +19,32 @@ class CommandResult:
 
 
 def resolve_binary(name: str) -> str | None:
-    """Return absolute path for a binary name when available."""
-    return shutil.which(name)
+    """Return absolute path for a binary name when available.
+
+    Checks PATH first, then common install locations so tools work
+    even when the shell profile hasn't been sourced yet.
+    """
+    import os
+    from pathlib import Path
+
+    found = shutil.which(name)
+    if found:
+        return found
+
+    # Fallback: check common locations not always in PATH
+    home = Path.home()
+    extra_dirs = [
+        home / ".local" / "bin",
+        home / ".cargo" / "bin",
+        Path("/usr/local/bin"),
+        Path("/snap/bin"),
+    ]
+    for d in extra_dirs:
+        candidate = d / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+
+    return None
 
 
 async def run_command(
