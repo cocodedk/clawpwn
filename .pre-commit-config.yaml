@@ -8,6 +8,14 @@ repos:
 
   - repo: local
     hooks:
+      - id: pytest
+        name: Run tests with pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit]
+        
       - id: check-file-size
         name: Check Python file size limit (200 lines)
         entry: python3

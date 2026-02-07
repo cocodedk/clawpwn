@@ -283,7 +283,7 @@ class TestToolUseAgent:
         )
         # Override FAST_PATH_TOOLS so check_available_tools doesn't fast-path
         with (
-            patch("clawpwn.ai.nli.agent.loop.FAST_PATH_TOOLS", frozenset()),
+            patch("clawpwn.ai.nli.agent.executor.FAST_PATH_TOOLS", frozenset()),
             patch("clawpwn.ai.nli.agent.executor.dispatch_tool", return_value="tools: nmap"),
         ):
             agent.llm.chat_with_tools = Mock(return_value=tool_response)
