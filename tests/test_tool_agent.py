@@ -209,7 +209,7 @@ class TestToolUseAgent:
         )
 
         with patch(
-            "clawpwn.ai.nli.agent.loop.dispatch_tool",
+            "clawpwn.ai.nli.agent.executor.dispatch_tool",
             return_value="Target: example.com",
         ):
             result = agent.run("what is the status")
@@ -236,7 +236,7 @@ class TestToolUseAgent:
         agent.llm.chat_with_tools = Mock(side_effect=[scan_response, analysis_response])
 
         with patch(
-            "clawpwn.ai.nli.agent.loop.dispatch_tool",
+            "clawpwn.ai.nli.agent.executor.dispatch_tool",
             return_value="Total findings: 2 (2 critical).",
         ):
             result = agent.run("scan for sql injection http://target/phpmyadmin")
@@ -282,7 +282,10 @@ class TestToolUseAgent:
             stop_reason="tool_use",
         )
         # Override FAST_PATH_TOOLS so check_available_tools doesn't fast-path
-        with patch("clawpwn.ai.nli.agent.loop.FAST_PATH_TOOLS", frozenset()):
+        with (
+            patch("clawpwn.ai.nli.agent.loop.FAST_PATH_TOOLS", frozenset()),
+            patch("clawpwn.ai.nli.agent.executor.dispatch_tool", return_value="tools: nmap"),
+        ):
             agent.llm.chat_with_tools = Mock(return_value=tool_response)
             result = agent.run("loop test")
 

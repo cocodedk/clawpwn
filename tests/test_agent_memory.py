@@ -250,8 +250,6 @@ class TestProjectContextEnrichment:
 
     def test_context_includes_scan_history(self, temp_dir: Path):
         """Test that _get_project_context includes scan history."""
-        from clawpwn.ai.llm import LLMClient
-        from clawpwn.ai.nli.agent import ToolUseAgent
         from clawpwn.db.init import init_db
         from clawpwn.modules.session import SessionManager
 
@@ -282,9 +280,9 @@ class TestProjectContextEnrichment:
         )
 
         # Create agent and get context
-        llm = LLMClient(provider="openai", api_key="test-key", project_dir=temp_dir)
-        agent = ToolUseAgent(llm, temp_dir)
-        context = agent._get_project_context()
+        from clawpwn.ai.nli.agent.context import get_project_context
+
+        context = get_project_context(temp_dir)
 
         # Verify context includes scan history
         assert "Past actions" in context
@@ -294,8 +292,6 @@ class TestProjectContextEnrichment:
 
     def test_context_includes_findings_summary(self, temp_dir: Path):
         """Test that _get_project_context includes findings grouped by type."""
-        from clawpwn.ai.llm import LLMClient
-        from clawpwn.ai.nli.agent import ToolUseAgent
         from clawpwn.db.init import init_db
         from clawpwn.modules.session import SessionManager
 
@@ -321,9 +317,9 @@ class TestProjectContextEnrichment:
         )
 
         # Create agent and get context
-        llm = LLMClient(provider="openai", api_key="test-key", project_dir=temp_dir)
-        agent = ToolUseAgent(llm, temp_dir)
-        context = agent._get_project_context()
+        from clawpwn.ai.nli.agent.context import get_project_context
+
+        context = get_project_context(temp_dir)
 
         # Verify context includes findings summary
         assert "Existing findings by type" in context
@@ -333,8 +329,6 @@ class TestProjectContextEnrichment:
 
     def test_context_without_history_still_works(self, temp_dir: Path):
         """Test that context works even without scan history."""
-        from clawpwn.ai.llm import LLMClient
-        from clawpwn.ai.nli.agent import ToolUseAgent
         from clawpwn.db.init import init_db
         from clawpwn.modules.session import SessionManager
 
@@ -349,9 +343,9 @@ class TestProjectContextEnrichment:
         session_manager.set_target("http://example.com")
 
         # Create agent and get context
-        llm = LLMClient(provider="openai", api_key="test-key", project_dir=temp_dir)
-        agent = ToolUseAgent(llm, temp_dir)
-        context = agent._get_project_context()
+        from clawpwn.ai.nli.agent.context import get_project_context
+
+        context = get_project_context(temp_dir)
 
         # Verify basic context still present
         assert "Active target: http://example.com" in context
@@ -359,8 +353,6 @@ class TestProjectContextEnrichment:
 
     def test_context_time_formatting(self, temp_dir: Path):
         """Test that scan log timestamps are formatted as human-readable time ago."""
-        from clawpwn.ai.llm import LLMClient
-        from clawpwn.ai.nli.agent import ToolUseAgent
         from clawpwn.db.init import init_db
         from clawpwn.modules.session import SessionManager
 
@@ -392,9 +384,9 @@ class TestProjectContextEnrichment:
         )
 
         # Create agent and get context
-        llm = LLMClient(provider="openai", api_key="test-key", project_dir=temp_dir)
-        agent = ToolUseAgent(llm, temp_dir)
-        context = agent._get_project_context()
+        from clawpwn.ai.nli.agent.context import get_project_context
+
+        context = get_project_context(temp_dir)
 
         # Verify time ago appears (should be "0m ago" or similar for just-added log)
         assert "[0m ago]" in context or "[1m ago]" in context
@@ -478,8 +470,6 @@ class TestEndToEndMemory:
         """Test that multiple scans create a history that agent can see."""
         from unittest.mock import patch
 
-        from clawpwn.ai.llm import LLMClient
-        from clawpwn.ai.nli.agent import ToolUseAgent
         from clawpwn.ai.nli.tool_executors.scan_executors import execute_web_scan
         from clawpwn.db.init import init_db
         from clawpwn.modules.session import SessionManager
@@ -513,9 +503,9 @@ class TestEndToEndMemory:
             )
 
         # Check agent sees the history
-        llm = LLMClient(provider="openai", api_key="test-key", project_dir=temp_dir)
-        agent = ToolUseAgent(llm, temp_dir)
-        context = agent._get_project_context()
+        from clawpwn.ai.nli.agent.context import get_project_context
+
+        context = get_project_context(temp_dir)
 
         assert "Past actions" in context
         assert context.count("web_scan") >= 2  # Both scans should appear

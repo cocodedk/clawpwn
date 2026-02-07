@@ -1,6 +1,8 @@
-"""Claude tool-use agent for ClawPwn NLI."""
+"""Agent module for tool-use conversations."""
 
-from .loop import ProgressCallback, ToolUseAgent
+from collections.abc import Callable
+
+from .loop import ToolUseAgent
 from .prompt import (
     ANALYSIS_MAX_TOKENS,
     MAX_TOOL_ROUNDS,
@@ -8,6 +10,10 @@ from .prompt import (
     SYSTEM_PROMPT_TEMPLATE,
     TOOL_ACTION_MAP,
 )
+from .result_builder import build_result, format_tool_call, split_content
+
+# Type alias
+ProgressCallback = Callable[[str], None]
 
 __all__ = [
     "ANALYSIS_MAX_TOKENS",
@@ -17,4 +23,7 @@ __all__ = [
     "SYSTEM_PROMPT_TEMPLATE",
     "TOOL_ACTION_MAP",
     "ToolUseAgent",
+    "build_result",
+    "format_tool_call",
+    "split_content",
 ]

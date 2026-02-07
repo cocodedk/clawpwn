@@ -9,7 +9,7 @@ repos:
   - repo: local
     hooks:
       - id: check-file-size
-        name: Check Python file size limit (400 lines - WARNING)
+        name: Check Python file size limit (200 lines)
         entry: python3
         language: system
         types: [python]
@@ -18,7 +18,7 @@ repos:
           - -c
           - |
             import sys
-            MAX_LINES = 400
+            MAX_LINES = 200
             errors = []
             for path in sys.argv[1:]:
                 try:
@@ -31,7 +31,7 @@ repos:
             
             if errors:
                 print("\n⚠️  FILE SIZE LIMIT EXCEEDED", file=sys.stderr)
-                print("\nThe following files exceed the 400-line limit:", file=sys.stderr)
+                print("\nThe following files exceed the 200-line limit:", file=sys.stderr)
                 for err in errors:
                     print(err, file=sys.stderr)
                 print("\nPlease split large files into subfolder modules.", file=sys.stderr)
