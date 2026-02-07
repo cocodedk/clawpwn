@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,13 @@ from clawpwn.ai.llm import LLMClient
 from clawpwn.ai.nli.tool_executors import dispatch_tool, format_availability_report
 from clawpwn.ai.nli.tools import FAST_PATH_TOOLS, get_all_tools
 
-from .prompt import MAX_TOOL_ROUNDS, ROUTING_MAX_TOKENS, SYSTEM_PROMPT_TEMPLATE, TOOL_ACTION_MAP
+from .prompt import (
+    MAX_TOOL_ROUNDS,
+    ROUTING_MAX_TOKENS,
+    SYSTEM_PROMPT_TEMPLATE,
+    THINKING_BUDGET,
+    TOOL_ACTION_MAP,
+)
 
 # Type alias for the live progress callback.
 ProgressCallback = Callable[[str], None]
@@ -43,8 +50,11 @@ class ToolUseAgent:
         return self._base_system_prompt
 
     def _get_project_context(self) -> str:
-        """Fetch active target and phase from session, if available."""
+        """Fetch active target, phase, action history, and findings from session."""
         try:
+            import json
+            from datetime import datetime
+
             from clawpwn.config import get_project_db_path
             from clawpwn.modules.session import SessionManager
 
@@ -55,7 +65,10 @@ class ToolUseAgent:
             state = session.get_state()
             if not state:
                 return ""
+
             parts: list[str] = []
+
+            # Current target and phase
             if state.target:
                 parts.append(f"Active target: {state.target}")
             if state.current_phase:
@@ -65,9 +78,105 @@ class ToolUseAgent:
                     f"Findings so far: {state.findings_count} "
                     f"({state.critical_count} critical, {state.high_count} high)"
                 )
+
+            # Recent scan action history
+            scan_logs = session.get_scan_logs(limit=10)
+            if scan_logs:
+                parts.append("\nPast actions (recent first):")
+                for log in scan_logs:
+                    try:
+                        # Parse the JSON details
+                        details = json.loads(log.details) if log.details else {}
+                        tool_type = details.get("tool", "unknown")
+                        target = details.get("target", details.get("network", ""))
+
+                        # Format based on tool type
+                        if tool_type == "web_scan":
+                            tools_used = ",".join(details.get("tools_used", []))
+                            cats = ",".join(details.get("categories", []))
+                            depth = details.get("depth", "normal")
+                            findings_count = details.get("findings_count", 0)
+                            action_str = f"web_scan({tools_used}, {cats}, {depth}) on {target} -> {findings_count} findings"
+                        elif tool_type == "network_scan":
+                            scanner = details.get("scanner", "nmap")
+                            depth = details.get("depth", "deep")
+                            ports_count = details.get("open_ports_count", 0)
+                            action_str = f"network_scan({scanner}, {depth}) on {target} -> {ports_count} ports"
+                        elif tool_type == "discover_hosts":
+                            hosts_count = details.get("hosts_count", 0)
+                            action_str = f"discover_hosts({target}) -> {hosts_count} hosts"
+                        else:
+                            action_str = log.message
+
+                        # Time ago
+                        now = datetime.now(UTC)
+                        created = log.created_at
+                        if created.tzinfo is None:
+                            # Assume UTC if no timezone
+                            created = created.replace(tzinfo=UTC)
+                        delta = now - created
+                        if delta.total_seconds() < 3600:
+                            time_ago = f"{int(delta.total_seconds() / 60)}m ago"
+                        elif delta.total_seconds() < 86400:
+                            time_ago = f"{int(delta.total_seconds() / 3600)}h ago"
+                        else:
+                            time_ago = f"{int(delta.total_seconds() / 86400)}d ago"
+
+                        parts.append(f"- {action_str} [{time_ago}]")
+                    except (json.JSONDecodeError, KeyError):
+                        # Fallback to message if JSON parsing fails
+                        parts.append(f"- {log.message}")
+
+            # Findings grouped by attack type
+            findings_by_type = session.get_findings_by_attack_type()
+            if findings_by_type:
+                parts.append("\nExisting findings by type:")
+                for attack_type, findings in sorted(findings_by_type.items()):
+                    # Get severity counts
+                    sev_counts = {}
+                    for f in findings:
+                        sev_counts[f.severity] = sev_counts.get(f.severity, 0) + 1
+
+                    # Format: "sqli: 2 (1 high, 1 medium)"
+                    if findings:
+                        sev_str = ", ".join(
+                            f"{cnt} {sev}" for sev, cnt in sorted(sev_counts.items())
+                        )
+                        # Show one example title
+                        example = findings[0].title if findings else ""
+                        parts.append(
+                            f"- {attack_type}: {len(findings)} ({sev_str}) - e.g., {example}"
+                        )
+                    else:
+                        parts.append(f"- {attack_type}: scanned, nothing found")
+
             return "\n".join(parts)
         except Exception:
-            return ""
+            # Fallback to basic context if enrichment fails
+            try:
+                from clawpwn.config import get_project_db_path
+                from clawpwn.modules.session import SessionManager
+
+                db_path = get_project_db_path(self.project_dir)
+                if not db_path:
+                    return ""
+                session = SessionManager(db_path)
+                state = session.get_state()
+                if not state:
+                    return ""
+                parts: list[str] = []
+                if state.target:
+                    parts.append(f"Active target: {state.target}")
+                if state.current_phase:
+                    parts.append(f"Phase: {state.current_phase}")
+                if state.findings_count:
+                    parts.append(
+                        f"Findings so far: {state.findings_count} "
+                        f"({state.critical_count} critical, {state.high_count} high)"
+                    )
+                return "\n".join(parts)
+            except Exception:
+                return ""
 
     # ------------------------------------------------------------------
     # Public API
@@ -109,8 +218,23 @@ class ToolUseAgent:
                 system_prompt=self._system_prompt,
                 max_tokens=ROUTING_MAX_TOKENS,
                 debug=debug,
+                thinking_budget=THINKING_BUDGET,
             )
             model_used = getattr(response, "model", None)
+
+            # In debug mode, emit thinking blocks for visibility
+            if debug:
+                for block in response.content:
+                    if getattr(block, "type", None) == "thinking":
+                        thinking_text = getattr(block, "thinking", "")
+                        if thinking_text:
+                            # Truncate for brevity in output
+                            preview = (
+                                thinking_text[:500] + "..."
+                                if len(thinking_text) > 500
+                                else thinking_text
+                            )
+                            self._emit(f"[THINKING] {preview}")
 
             # Collect text blocks Claude emitted in this round
             text_parts, tool_calls = self._split_content(response.content)
@@ -202,18 +326,20 @@ class ToolUseAgent:
 
     @staticmethod
     def _split_content(content: Any) -> tuple[list[str], list[Any]]:
-        """Separate text blocks from tool_use blocks."""
+        """Separate text blocks from tool_use blocks (ignore thinking blocks)."""
         texts: list[str] = []
         tools: list[Any] = []
         if not isinstance(content, list):
             return texts, tools
         for block in content:
-            if getattr(block, "type", None) == "text":
+            block_type = getattr(block, "type", None)
+            if block_type == "text":
                 text = getattr(block, "text", "").strip()
                 if text:
                     texts.append(text)
-            elif getattr(block, "type", None) == "tool_use":
+            elif block_type == "tool_use":
                 tools.append(block)
+            # Ignore "thinking" blocks — they're for Claude's internal reasoning
         return texts, tools
 
     @staticmethod

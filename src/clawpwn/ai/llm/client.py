@@ -1,4 +1,4 @@
-"""LLM client for ClawPwn AI integration."""
+"""Core LLM client class."""
 
 from __future__ import annotations
 
@@ -10,17 +10,14 @@ from typing import Any
 import httpx
 
 from clawpwn.config import (
-    ensure_project_env,
-    get_api_key,
     get_llm_base_url,
     get_llm_model,
     get_llm_provider,
-    get_project_env_path,
 )
 
 # Default models per tier
-ROUTING_MODEL_DEFAULT = "claude-3-5-haiku-20241022"
-ANALYSIS_MODEL_DEFAULT = "claude-3-5-sonnet-20241022"
+ROUTING_MODEL_DEFAULT = "claude-haiku-4-5-20251001"
+ANALYSIS_MODEL_DEFAULT = "claude-haiku-4-5-20251001"
 
 
 class LLMClient:
@@ -41,7 +38,9 @@ class LLMClient:
         if api_key:
             self.api_key = api_key
         else:
-            self.api_key = self._get_api_key_with_fallback()
+            from .api_helpers import get_api_key_with_fallback
+
+            self.api_key = get_api_key_with_fallback(self)
 
         # Default models
         self.model = (
@@ -72,82 +71,12 @@ class LLMClient:
             self._anthropic_client = anthropic.Anthropic(**kwargs)
         return self._anthropic_client
 
-    # ------------------------------------------------------------------
-    # Tool-use entry point (Anthropic SDK)
-    # ------------------------------------------------------------------
-
-    def chat_with_tools(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]],
-        system_prompt: str | None = None,
-        *,
-        model: str | None = None,
-        max_tokens: int = 1024,
-        debug: bool = False,
-    ) -> Any:
-        """Send a message with tool definitions via the Anthropic SDK.
-
-        Returns the raw ``anthropic.types.Message`` object so callers can
-        inspect ``stop_reason``, ``content`` blocks (text / tool_use), etc.
-        """
-        if self.provider != "anthropic":
-            raise RuntimeError("chat_with_tools requires the Anthropic provider")
-
-        # Set thread-local debug state
-        if debug:
-            from clawpwn.utils.debug import debug_llm_request, debug_llm_response, set_debug_enabled
-
-            set_debug_enabled(True)
-
-            # Log the request
-            debug_llm_request(
-                model=model or self.routing_model,
-                max_tokens=max_tokens,
-                system_prompt=system_prompt,
-                tools=tools,
-                messages=messages,
-            )
-
-        kwargs: dict[str, Any] = {
-            "model": model or self.routing_model,
-            "max_tokens": max_tokens,
-            "messages": messages,
-            "tools": tools,
-        }
-        if system_prompt:
-            kwargs["system"] = [
-                {
-                    "type": "text",
-                    "text": system_prompt,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ]
-
-        response = self.anthropic_sdk.messages.create(**kwargs)
-
-        # Log the response
-        if debug:
-            content_types = [block.type for block in response.content]
-            token_usage = {
-                "input_tokens": response.usage.input_tokens,
-                "output_tokens": response.usage.output_tokens,
-                "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
-            }
-            debug_llm_response(
-                stop_reason=response.stop_reason,
-                content_types=content_types,
-                token_usage=token_usage,
-            )
-
-        return response
-
     def close(self) -> None:
         """Close the underlying HTTP client and release the connection pool."""
         client = getattr(self, "client", None)
         if client is not None:
             client.close()
-            self.client = None  # idempotent; avoid double-close and __del__ no-op
+            self.client = None
         sdk = getattr(self, "_anthropic_client", None)
         if sdk is not None:
             sdk.close()
@@ -164,55 +93,6 @@ class LLMClient:
             self.close()
         except Exception:
             pass
-
-    def _get_api_key_with_fallback(self) -> str:
-        """Get API key from multiple sources with helpful error messages."""
-        api_key = get_api_key(self.provider, self.project_dir)
-
-        if not api_key and self.project_dir:
-            ensure_project_env(self.project_dir)
-            if not self._provider_explicit:
-                self.provider = get_llm_provider(self.project_dir).lower()
-            api_key = get_api_key(self.provider, self.project_dir)
-
-        if not api_key:
-            # Create helpful error message with setup instructions
-            env_var = {
-                "anthropic": "ANTHROPIC_API_KEY",
-                "openai": "OPENAI_API_KEY",
-                "openrouter": "OPENROUTER_API_KEY",
-            }.get(self.provider, f"{self.provider.upper()}_API_KEY")
-
-            env_path = (
-                get_project_env_path(self.project_dir)
-                if self.project_dir
-                else Path(".clawpwn/.env")
-            )
-
-            error_msg = f"""API key not found for provider: {self.provider}
-
-To set your API key, choose one of these methods:
-
-1. Environment variable (quick):
-   export CLAWPWN_LLM_API_KEY=your-api-key
-   export CLAWPWN_LLM_PROVIDER={self.provider}
-   # or legacy: export {env_var}=your-api-key
-
-2. Project .env file (recommended per project):
-   echo "CLAWPWN_LLM_PROVIDER={self.provider}" >> {env_path}
-   echo "CLAWPWN_LLM_API_KEY=your-api-key" >> {env_path}
-
-3. Global config file:
-   echo "CLAWPWN_LLM_API_KEY: your-api-key" >> ~/.clawpwn/config.yml
-
-Get your API key from:
-- Anthropic: https://console.anthropic.com/
-- OpenAI: https://platform.openai.com/
-- OpenRouter: https://openrouter.ai/
-"""
-            raise ValueError(error_msg)
-
-        return api_key
 
     def chat(self, message: str, system_prompt: str | None = None) -> str:
         """Send a chat message and get a response."""

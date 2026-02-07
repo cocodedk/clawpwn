@@ -73,3 +73,41 @@ class FindingLogMixin:
             .limit(limit)
             .all()
         )
+
+    def get_scan_logs(self, limit: int = 10) -> list[Log]:
+        """Get recent scan action logs (those with JSON details and phase='scan')."""
+        project = self.get_project()
+        if not project:
+            return []
+
+        return (
+            self.session.query(Log)
+            .filter_by(project_id=project.id, phase="scan")
+            .filter(Log.details != "")
+            .filter(Log.details.isnot(None))
+            .order_by(Log.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+    def get_findings_by_attack_type(self) -> dict[str, list[Finding]]:
+        """Group all project findings by their attack_type."""
+        project = self.get_project()
+        if not project:
+            return {}
+
+        findings = (
+            self.session.query(Finding)
+            .filter_by(project_id=project.id)
+            .order_by(Finding.created_at.desc())
+            .all()
+        )
+
+        by_type: dict[str, list[Finding]] = {}
+        for finding in findings:
+            attack_type = finding.attack_type or "other"
+            if attack_type not in by_type:
+                by_type[attack_type] = []
+            by_type[attack_type].append(finding)
+
+        return by_type

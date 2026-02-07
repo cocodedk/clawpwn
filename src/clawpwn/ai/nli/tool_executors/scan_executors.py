@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,9 @@ MAX_EVIDENCE_CHARS = 200
 
 def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
     """Run web vulnerability scan and return compact result text."""
+    from clawpwn.config import get_project_db_path
     from clawpwn.modules.scanner import Scanner
+    from clawpwn.modules.session import SessionManager
     from clawpwn.modules.webscan import (
         WebScanConfig,
         WebScanOrchestrator,
@@ -51,12 +54,39 @@ def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
         )
     )
 
+    # Log the scan action to project database
+    try:
+        db_path = get_project_db_path(project_dir)
+        if db_path:
+            session = SessionManager(db_path)
+            tools_str = ",".join(tools_list)
+            cats_str = ",".join(scan_types)
+            session.add_log(
+                message=f"web_scan: {tools_str} [{cats_str}] depth={depth} -> {len(findings)} findings",
+                level="INFO",
+                phase="scan",
+                details=json.dumps(
+                    {
+                        "tool": "web_scan",
+                        "tools_used": tools_list,
+                        "categories": scan_types,
+                        "depth": depth,
+                        "target": target,
+                        "findings_count": len(findings),
+                    }
+                ),
+            )
+    except Exception:
+        pass  # Don't fail the scan if logging fails
+
     return _format_scan_findings(findings, errors, target)
 
 
 def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
     """Run a host port scan."""
+    from clawpwn.config import get_project_db_path
     from clawpwn.modules.network import NetworkDiscovery
+    from clawpwn.modules.session import SessionManager
 
     target = params["target"]
     depth = params.get("depth", "deep")
@@ -87,6 +117,30 @@ def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
             )
         )
         open_ports = ", ".join(str(p) for p in host_info.open_ports) or "none"
+
+        # Log the scan action
+        try:
+            db_path = get_project_db_path(project_dir)
+            if db_path:
+                session = SessionManager(db_path)
+                session.add_log(
+                    message=f"network_scan: {scanner} depth={depth} -> {len(host_info.open_ports)} ports",
+                    level="INFO",
+                    phase="scan",
+                    details=json.dumps(
+                        {
+                            "tool": "network_scan",
+                            "scanner": scanner,
+                            "depth": depth,
+                            "target": target,
+                            "open_ports_count": len(host_info.open_ports),
+                            "open_ports": list(host_info.open_ports)[:20],  # Limit for size
+                        }
+                    ),
+                )
+        except Exception:
+            pass
+
         return f"Host scan of {target} complete. Open ports: {open_ports}."
     except Exception as exc:
         return f"Network scan failed: {exc}"
@@ -94,7 +148,9 @@ def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
 
 def execute_discover_hosts(params: dict[str, Any], project_dir: Path) -> str:
     """Discover live hosts on a CIDR range."""
+    from clawpwn.config import get_project_db_path
     from clawpwn.modules.network import NetworkDiscovery
+    from clawpwn.modules.session import SessionManager
 
     network = params["network"]
     discovery = NetworkDiscovery(project_dir)
@@ -103,6 +159,28 @@ def execute_discover_hosts(params: dict[str, Any], project_dir: Path) -> str:
         max_hosts = params.get("max_hosts", 256)
         if max_hosts and len(hosts) > max_hosts:
             hosts = hosts[:max_hosts]
+
+        # Log the discovery action
+        try:
+            db_path = get_project_db_path(project_dir)
+            if db_path:
+                session = SessionManager(db_path)
+                session.add_log(
+                    message=f"discover_hosts: {network} -> {len(hosts)} hosts",
+                    level="INFO",
+                    phase="scan",
+                    details=json.dumps(
+                        {
+                            "tool": "discover_hosts",
+                            "network": network,
+                            "hosts_count": len(hosts),
+                            "hosts": hosts[:10],  # Limit for size
+                        }
+                    ),
+                )
+        except Exception:
+            pass
+
         preview = ", ".join(hosts[:10])
         suffix = f" ... ({len(hosts)} total)" if len(hosts) > 10 else ""
         return f"Found {len(hosts)} live hosts on {network}: {preview}{suffix}"

@@ -1,20 +1,39 @@
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.2
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
   - repo: local
     hooks:
-      - id: ruff-check
-        name: ruff (lint)
-        entry: uv run ruff check --fix src tests
+      - id: check-file-size
+        name: Check Python file size limit (400 lines - WARNING)
+        entry: python3
         language: system
         types: [python]
-        pass_filenames: false
-      - id: ruff-format
-        name: ruff (format)
-        entry: uv run ruff format src tests
-        language: system
-        types: [python]
-        pass_filenames: false
-      - id: pytest
-        name: pytest
-        entry: uv run pytest -q -p no:cacheprovider --maxfail=1
-        language: system
-        pass_filenames: false
+        exclude: ^tests/
+        args:
+          - -c
+          - |
+            import sys
+            MAX_LINES = 400
+            errors = []
+            for path in sys.argv[1:]:
+                try:
+                    with open(path, 'r') as f:
+                        line_count = sum(1 for _ in f)
+                    if line_count > MAX_LINES:
+                        errors.append(f"  ❌ {path}: {line_count} lines (max {MAX_LINES})")
+                except Exception as e:
+                    print(f"Warning: Could not check {path}: {e}", file=sys.stderr)
+            
+            if errors:
+                print("\n⚠️  FILE SIZE LIMIT EXCEEDED", file=sys.stderr)
+                print("\nThe following files exceed the 400-line limit:", file=sys.stderr)
+                for err in errors:
+                    print(err, file=sys.stderr)
+                print("\nPlease split large files into subfolder modules.", file=sys.stderr)
+                print("Target: 150-200 lines per file.", file=sys.stderr)
+                sys.exit(1)

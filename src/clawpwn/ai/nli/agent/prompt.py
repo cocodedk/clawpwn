@@ -9,6 +9,7 @@ from __future__ import annotations
 MAX_TOOL_ROUNDS = 3
 ROUTING_MAX_TOKENS = 1024
 ANALYSIS_MAX_TOKENS = 2048
+THINKING_BUDGET = 3000  # Tokens allocated for Claude's internal reasoning
 
 SYSTEM_PROMPT_TEMPLATE = """\
 You are ClawPwn, an AI-powered penetration testing assistant.
@@ -35,6 +36,15 @@ IMPORTANT: When the user says "scan" or any action without specifying a target,
 you MUST use the active target from the "Current project state" section below.
 Do NOT ask the user for a target if one is already set. Only ask if there is
 no active target at all.
+
+HISTORY AWARENESS:
+When "Past actions" shows a scan was already run against this target:
+- Do NOT repeat the same tool + category + depth combination.
+- If a previous scan found nothing, try a DIFFERENT approach: different tool,
+  different depth, different parameters, or suggest manual testing steps.
+- Build on findings: if misconfigs were found but SQLi was not, focus on
+  unexplored attack surfaces rather than re-scanning what is already covered.
+- When all automated options are exhausted, advise the user on manual steps.
 
 Be concise. Explain your reasoning briefly before calling a tool.
 
