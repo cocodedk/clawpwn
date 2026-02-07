@@ -34,17 +34,11 @@ def debug_print(category: str, message: str, **data: Any) -> None:
     """
     if not is_debug_enabled():
         return
-
     console = Console()
-
-    # Format the header
     console.print(f"[DEBUG:{category}] {message}", style="bold cyan")
-
-    # Print any additional data
     for key, value in data.items():
         if value is None:
             continue
-
         # Special formatting for different types
         if isinstance(value, dict):
             try:
@@ -81,20 +75,16 @@ def debug_llm_request(
     """
     if not is_debug_enabled():
         return
-
     tool_names = [t.get("name", "unknown") for t in tools]
     tool_summary = f"{', '.join(tool_names[:3])}"
     if len(tools) > 3:
         tool_summary += f", +{len(tools) - 3} more"
-
-    # Truncate system prompt if too long
     system_display = None
     if system_prompt:
         if len(system_prompt) > 500:
             system_display = f"{len(system_prompt)} chars"
         else:
             system_display = f"{len(system_prompt)} chars"
-
     user_msg = ""
     for msg in messages:
         if msg.get("role") == "user":
@@ -102,7 +92,6 @@ def debug_llm_request(
             if isinstance(content, str):
                 user_msg = content[:80] if len(content) > 80 else content
             break
-
     debug_print(
         "llm",
         f"→ {model} (max_tokens={max_tokens})",
@@ -126,14 +115,12 @@ def debug_llm_response(
     """
     if not is_debug_enabled():
         return
-
     usage_str = None
     if token_usage:
         inp = token_usage.get("input_tokens", 0)
         out = token_usage.get("output_tokens", 0)
         total = token_usage.get("total_tokens") or (inp + out)
         usage_str = f"{inp}↓/{out}↑/{total} total"
-
     debug_print(
         "llm",
         f"← stop_reason={stop_reason}",
@@ -156,7 +143,6 @@ def debug_agent_round(
     """
     if not is_debug_enabled():
         return
-
     debug_print(
         "agent",
         f"Round {round_num}",
@@ -183,16 +169,13 @@ def debug_tool_execution(
     """
     if not is_debug_enabled():
         return
-
     if start:
-        # Simplify params for display
         simple_params = {}
         for key, value in params.items():
             if isinstance(value, str) and len(value) > 50:
                 simple_params[key] = f"{value[:50]}..."
             else:
                 simple_params[key] = value
-
         debug_print(
             "tool",
             f"dispatch_tool({tool_name}) +0.0s",

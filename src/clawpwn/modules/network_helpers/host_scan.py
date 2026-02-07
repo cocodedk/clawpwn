@@ -26,10 +26,8 @@ async def scan_host(
 ) -> Any:
     """Scan one host and return HostInfo-like result."""
     console.print(f"[bold cyan]Scanning[/] [bold]{target}[/]")
-
     ports = ports_tcp or discovery._ports_for_scan(scan_type, full_scan)
     scanner = discovery._get_port_scanner(scanner_type)
-
     parsed = parse_port_spec(ports)
     if parsed and parallel_groups > 1:
         low, high = parsed

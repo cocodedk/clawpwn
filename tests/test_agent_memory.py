@@ -438,7 +438,7 @@ class TestEndToEndMemory:
         session.create_project(str(temp_dir))
 
         # Mock the scan orchestrator to avoid actual scanning
-        with patch("clawpwn.ai.nli.tool_executors.scan_executors.safe_async_run") as mock_run:
+        with patch("clawpwn.utils.async_utils.safe_async_run") as mock_run:
             mock_run.return_value = ([], [])  # No findings, no errors
 
             # Execute a scan
@@ -484,7 +484,7 @@ class TestEndToEndMemory:
         session.set_target("http://example.com")
 
         # Mock scanning
-        with patch("clawpwn.ai.nli.tool_executors.scan_executors.safe_async_run") as mock_run:
+        with patch("clawpwn.utils.async_utils.safe_async_run") as mock_run:
             mock_run.return_value = ([], [])
 
             # Execute multiple scans

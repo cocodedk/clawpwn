@@ -1,5 +1,6 @@
-"""HTTP helpers for ClawPwn."""
+"""HTTP client implementation for pentesting."""
 
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
@@ -58,8 +59,6 @@ class HTTPClient:
         """Make an HTTP request."""
         if not self.client:
             raise RuntimeError("Client not initialized. Use async context manager.")
-
-        import time
 
         start = time.time()
 
@@ -156,87 +155,3 @@ class HTTPClient:
                 continue
 
         return found
-
-
-class WebCrawler:
-    """Simple web crawler for mapping applications."""
-
-    def __init__(self, base_url: str, max_depth: int = 2, max_pages: int = 50):
-        self.base_url = base_url
-        self.max_depth = max_depth
-        self.max_pages = max_pages
-        self.visited: set = set()
-        self.found_urls: list[str] = []
-
-    async def crawl(self) -> list[str]:
-        """Crawl the website and return found URLs."""
-        async with HTTPClient() as client:
-            await self._crawl_recursive(client, self.base_url, 0)
-
-        return self.found_urls
-
-    async def _crawl_recursive(self, client: HTTPClient, url: str, depth: int):
-        """Recursively crawl URLs."""
-        if depth > self.max_depth or len(self.visited) >= self.max_pages:
-            return
-
-        if url in self.visited:
-            return
-
-        self.visited.add(url)
-
-        try:
-            response = await client.get(url)
-
-            if response.status_code == 200:
-                self.found_urls.append(url)
-
-                # Extract links (simple regex-based)
-                import re
-
-                links = re.findall(r'href=["\']([^"\']+)["\']', response.body)
-
-                for link in links:
-                    absolute_url = urljoin(url, link)
-
-                    # Only crawl same domain
-                    if absolute_url.startswith(self.base_url):
-                        await self._crawl_recursive(client, absolute_url, depth + 1)
-
-        except Exception:
-            pass
-
-
-async def check_headers(url: str) -> dict[str, Any]:
-    """Check security headers of a URL."""
-    security_headers = [
-        "X-Frame-Options",
-        "X-Content-Type-Options",
-        "X-XSS-Protection",
-        "Content-Security-Policy",
-        "Strict-Transport-Security",
-        "Referrer-Policy",
-        "Permissions-Policy",
-    ]
-
-    async with HTTPClient() as client:
-        response = await client.get(url)
-
-    results = {
-        "url": url,
-        "status_code": response.status_code,
-        "server": response.server,
-        "missing_headers": [],
-        "present_headers": {},
-    }
-
-    # Headers may be lowercase in response, so check case-insensitively
-    response_headers_lower = {k.lower(): v for k, v in response.headers.items()}
-
-    for header in security_headers:
-        if header.lower() in response_headers_lower:
-            results["present_headers"][header] = response_headers_lower[header.lower()]
-        else:
-            results["missing_headers"].append(header)
-
-    return results

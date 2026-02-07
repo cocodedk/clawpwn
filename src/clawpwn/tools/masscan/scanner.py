@@ -1,12 +1,12 @@
-"""Masscan wrapper for fast network discovery."""
+"""Masscan scanner implementation."""
 
 import asyncio
-import json
 import os
 import shutil
-import subprocess
 import time
 from dataclasses import dataclass, field
+
+from .privileges import _can_sudo_without_password, _is_root
 
 
 def _parse_float_env(name: str, default: float | None = 3600.0) -> float | None:
@@ -18,26 +18,6 @@ def _parse_float_env(name: str, default: float | None = 3600.0) -> float | None:
         return float(val)
     except ValueError:
         return default
-
-
-def _is_root() -> bool:
-    """Check if running as root."""
-    return os.geteuid() == 0
-
-
-def _can_sudo_without_password(binary_path: str) -> bool:
-    """Check if we can run a binary with sudo without password prompt."""
-    if not binary_path or not os.path.isfile(binary_path):
-        return False
-    try:
-        result = subprocess.run(
-            ["sudo", "-n", binary_path, "--help"],
-            capture_output=True,
-            timeout=5,
-        )
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return False
 
 
 @dataclass
@@ -157,7 +137,10 @@ class MasscanScanner:
 
         stdout_text = stdout.decode()
         stderr_text = stderr.decode() if stderr else ""
-        results = self._parse_masscan_json(stdout_text)
+
+        from .parser import parse_masscan_json
+
+        results = parse_masscan_json(stdout_text)
 
         if verbose and stderr_text:
             print(f"[verbose] Masscan stderr: {stderr_text.strip()}")
@@ -180,43 +163,7 @@ class MasscanScanner:
 
     @staticmethod
     def _parse_masscan_json(output: str) -> list[HostResult]:
-        """Parse masscan JSON output into HostResult objects."""
-        data = output.strip()
-        if not data:
-            return []
+        """Parse masscan JSON output (delegates to parser module)."""
+        from .parser import parse_masscan_json
 
-        # Masscan sometimes emits trailing commas or extra whitespace
-        cleaned = data.replace("\n", "").replace("\t", "").strip()
-        if not cleaned.startswith("["):
-            cleaned = f"[{cleaned}]"
-
-        # Remove trailing commas before closing brackets
-        cleaned = cleaned.replace(",]", "]").replace(",}", "}")
-
-        try:
-            items = json.loads(cleaned)
-        except json.JSONDecodeError:
-            return []
-
-        hosts: dict[str, HostResult] = {}
-
-        for item in items:
-            ip = item.get("ip")
-            if not ip:
-                continue
-            host = hosts.setdefault(ip, HostResult(ip=ip))
-            for port_entry in item.get("ports", []):
-                port = port_entry.get("port")
-                proto = port_entry.get("proto", "tcp")
-                status = port_entry.get("status", "open")
-                if port is None:
-                    continue
-                host.ports.append(
-                    PortScanResult(
-                        port=int(port),
-                        protocol=str(proto),
-                        state=str(status),
-                    )
-                )
-
-        return list(hosts.values())
+        return parse_masscan_json(output)
