@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .attack_executors import execute_credential_test, execute_run_custom_script
 from .availability import (
     EXTERNAL_TOOLS,
     check_tool_availability,
@@ -18,6 +19,7 @@ from .availability import (
     execute_suggest_tools,
     format_availability_report,
 )
+from .recon_executors import execute_fingerprint_target, execute_web_search
 from .scan_executors import (
     execute_discover_hosts,
     execute_network_scan,
@@ -37,13 +39,17 @@ __all__ = [
     "enrich_missing_tool_error",
     "execute_check_available_tools",
     "execute_check_status",
+    "execute_credential_test",
     "execute_discover_hosts",
+    "execute_fingerprint_target",
     "execute_network_scan",
     "execute_research_vulnerabilities",
+    "execute_run_custom_script",
     "execute_set_target",
     "execute_show_help",
     "execute_suggest_tools",
     "execute_web_scan",
+    "execute_web_search",
     "format_availability_report",
 ]
 
@@ -61,6 +67,10 @@ TOOL_EXECUTORS: dict[str, Any] = {
     "show_help": execute_show_help,
     "check_available_tools": execute_check_available_tools,
     "suggest_tools": execute_suggest_tools,
+    "web_search": execute_web_search,
+    "fingerprint_target": execute_fingerprint_target,
+    "credential_test": execute_credential_test,
+    "run_custom_script": execute_run_custom_script,
 }
 
 

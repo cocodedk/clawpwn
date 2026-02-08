@@ -57,12 +57,17 @@ def chat_with_tools(
             }
         ]
 
-    # Enable extended thinking if budget provided
-    if thinking_budget:
-        kwargs["thinking"] = {
-            "type": "enabled",
-            "budget_tokens": thinking_budget,
-        }
+    # Anthropic constraints:
+    # - max_tokens must be greater than thinking.budget_tokens
+    # - thinking.budget_tokens must be at least 1024 when enabled
+    # Clamp/disable defensively so misconfigured constants don't hard-fail requests.
+    if thinking_budget and max_tokens > 1:
+        safe_budget = min(thinking_budget, max_tokens - 1)
+        if safe_budget >= 1024:
+            kwargs["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": safe_budget,
+            }
 
     response = client.anthropic_sdk.messages.create(**kwargs)
 

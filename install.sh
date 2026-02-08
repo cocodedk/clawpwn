@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+
 echo "=== ClawPwn Installer ==="
 echo ""
 
@@ -11,20 +14,50 @@ sudo -v || { echo "Error: sudo access required"; exit 1; }
 # Keep sudo alive in background
 while true; do sudo -n true; sleep 50; kill -0 "$$" || exit; done 2>/dev/null &
 
+# Helpers
+set_or_append_env_key() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  touch "$file"
+  if grep -qE "^${key}=" "$file"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+  else
+    printf "%s=%s\n" "$key" "$value" >> "$file"
+  fi
+}
+
+get_env_value() {
+  local file="$1"
+  local key="$2"
+  if [ -f "$file" ]; then
+    grep -E "^${key}=" "$file" | tail -n 1 | cut -d= -f2-
+  fi
+}
+
+generate_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+  else
+    head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'
+  fi
+}
+
 # Ensure uv is installed
 if ! command -v uv >/dev/null 2>&1; then
-  echo "[1/6] Installing uv..."
+  echo "[1/7] Installing uv..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
 else
-  echo "[1/6] uv already installed"
+  echo "[1/7] uv already installed"
 fi
 
 # Ensure Rust/cargo is installed
 if ! command -v cargo >/dev/null 2>&1; then
-  echo "[2/6] Installing Rust (cargo)..."
+  echo "[2/7] Installing Rust (cargo)..."
   curl -LsSf https://sh.rustup.rs | sh -s -- -y -q --default-toolchain stable
 else
-  echo "[2/6] Rust already installed"
+  echo "[2/7] Rust already installed"
 fi
 
 # Ensure PATH includes cargo and local bin
@@ -33,11 +66,11 @@ export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
 # Install ClawPwn
-echo "[3/6] Installing ClawPwn..."
+echo "[3/7] Installing ClawPwn..."
 uv tool install . --force --reinstall --refresh
 
 # Install scanners
-echo "[4/6] Installing scanners (nmap, masscan, rustscan)..."
+echo "[4/7] Installing scanners (nmap, masscan, rustscan)..."
 
 # nmap, masscan, and build tools via package manager
 if command -v apt-get >/dev/null 2>&1; then
@@ -68,7 +101,7 @@ for bin in nmap masscan rustscan; do
   fi
 done
 
-echo "[5/6] Installing web scanners (nuclei, feroxbuster, ffuf, nikto, sqlmap, testssl, wpscan, zap)..."
+echo "[5/7] Installing web scanners (nuclei, feroxbuster, ffuf, nikto, sqlmap, testssl, wpscan, zap)..."
 
 # Install web scanner packages via package manager when available
 if command -v apt-get >/dev/null 2>&1; then
@@ -153,7 +186,7 @@ for bin in nuclei feroxbuster ffuf nikto sqlmap wpscan testssl.sh docker; do
 done
 
 # Set up passwordless sudo for scanners (Linux only)
-echo "[6/6] Setting up scanner permissions..."
+echo "[6/7] Setting up scanner permissions..."
 if [ "$(uname)" = "Linux" ]; then
   # Get scanner paths
   nmap_path="$(command -v nmap 2>/dev/null || true)"
@@ -200,6 +233,157 @@ if [ "$(uname)" = "Linux" ]; then
 else
   echo "  Skipped (not Linux)"
 fi
+
+echo "[7/7] Setting up centralized experience DB (Postgres + Docker Compose)..."
+
+# Ensure Docker is installed
+if ! command -v docker >/dev/null 2>&1; then
+  echo "  Docker not found. Installing..."
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update -qq
+    sudo apt-get install -y docker.io docker-compose-plugin >/dev/null
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y docker docker-compose-plugin >/dev/null 2>&1 \
+      || sudo dnf install -y docker docker-compose >/dev/null 2>&1
+  elif command -v yum >/dev/null 2>&1; then
+    sudo yum install -y docker docker-compose-plugin >/dev/null 2>&1 \
+      || sudo yum install -y docker docker-compose >/dev/null 2>&1
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -S --noconfirm docker docker-compose >/dev/null
+  elif command -v brew >/dev/null 2>&1; then
+    brew install --cask docker >/dev/null 2>&1 || brew install docker >/dev/null 2>&1
+  fi
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Error: Docker installation failed. Cannot continue."
+  exit 1
+fi
+
+# Start Docker daemon when systemd is available
+if [ "$(uname)" = "Linux" ] && command -v systemctl >/dev/null 2>&1; then
+  sudo systemctl enable --now docker >/dev/null 2>&1 || true
+fi
+
+# Add user to docker group (takes effect on next login)
+if [ "$(uname)" = "Linux" ] && getent group docker >/dev/null 2>&1; then
+  sudo usermod -aG docker "$(whoami)" >/dev/null 2>&1 || true
+fi
+
+# Determine docker privilege mode
+DOCKER_PREFIX=()
+if docker info >/dev/null 2>&1; then
+  DOCKER_PREFIX=()
+elif sudo docker info >/dev/null 2>&1; then
+  DOCKER_PREFIX=(sudo)
+else
+  echo "Error: Docker daemon is not reachable."
+  exit 1
+fi
+
+# Determine compose command
+COMPOSE_MODE=""
+if "${DOCKER_PREFIX[@]}" docker compose version >/dev/null 2>&1; then
+  COMPOSE_MODE="plugin"
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_MODE="binary"
+fi
+
+if [ -z "$COMPOSE_MODE" ]; then
+  echo "Error: Docker Compose is not available."
+  exit 1
+fi
+
+compose_run() {
+  if [ "$COMPOSE_MODE" = "plugin" ]; then
+    "${DOCKER_PREFIX[@]}" docker compose -f "$REPO_ROOT/docker-compose.experience-db.yml" --env-file "$REPO_ROOT/.env.experience" "$@"
+  else
+    "${DOCKER_PREFIX[@]}" docker-compose -f "$REPO_ROOT/docker-compose.experience-db.yml" --env-file "$REPO_ROOT/.env.experience" "$@"
+  fi
+}
+
+# Prepare centralized DB environment
+experience_env="$REPO_ROOT/.env.experience"
+db_name="$(get_env_value "$experience_env" "EXPERIENCE_DB_NAME")"
+db_user="$(get_env_value "$experience_env" "EXPERIENCE_DB_USER")"
+db_port="$(get_env_value "$experience_env" "EXPERIENCE_DB_PORT")"
+db_password="$(get_env_value "$experience_env" "EXPERIENCE_DB_PASSWORD")"
+
+[ -n "$db_name" ] || db_name="clawpwn_experience"
+[ -n "$db_user" ] || db_user="clawpwn"
+[ -n "$db_port" ] || db_port="54329"
+[ -n "$db_password" ] || db_password="$(generate_secret)"
+
+set_or_append_env_key "$experience_env" "EXPERIENCE_DB_NAME" "$db_name"
+set_or_append_env_key "$experience_env" "EXPERIENCE_DB_USER" "$db_user"
+set_or_append_env_key "$experience_env" "EXPERIENCE_DB_PORT" "$db_port"
+set_or_append_env_key "$experience_env" "EXPERIENCE_DB_PASSWORD" "$db_password"
+
+db_url="postgresql://${db_user}:${db_password}@127.0.0.1:${db_port}/${db_name}"
+set_or_append_env_key "$experience_env" "CLAWPWN_EXPERIENCE_DB_URL" "$db_url"
+set_or_append_env_key "$REPO_ROOT/.env" "CLAWPWN_EXPERIENCE_DB_URL" "$db_url"
+
+# Ensure persistent volume exists (survives container recreation/removal)
+"${DOCKER_PREFIX[@]}" docker volume inspect clawpwn_pgdata >/dev/null 2>&1 \
+  || "${DOCKER_PREFIX[@]}" docker volume create clawpwn_pgdata >/dev/null
+
+# Start service
+mkdir -p "$REPO_ROOT/backups"
+compose_run up -d experience-db >/dev/null
+
+# Wait for healthy database
+container_id="$(compose_run ps -q experience-db)"
+if [ -z "$container_id" ]; then
+  echo "Error: experience-db container not found after startup."
+  exit 1
+fi
+
+attempts=0
+max_attempts=60
+while [ "$attempts" -lt "$max_attempts" ]; do
+  status="$("${DOCKER_PREFIX[@]}" docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
+  if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+    break
+  fi
+  attempts=$((attempts + 1))
+  sleep 2
+done
+
+if [ "$attempts" -eq "$max_attempts" ]; then
+  echo "Error: experience-db did not become healthy in time."
+  compose_run logs --tail=50 experience-db || true
+  exit 1
+fi
+
+# Apply schema/seed scripts on every install (works for fresh and existing volumes)
+compose_run exec -T experience-db \
+  psql -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1 \
+  -f /docker-entrypoint-initdb.d/001_extensions.sql >/dev/null
+compose_run exec -T experience-db \
+  psql -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1 \
+  -f /docker-entrypoint-initdb.d/010_experience_schema.sql >/dev/null
+compose_run exec -T experience-db \
+  psql -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1 \
+  -f /docker-entrypoint-initdb.d/020_experience_seed.sql >/dev/null
+
+seed_count="$(compose_run exec -T experience-db \
+  psql -U "$db_user" -d "$db_name" -tAc \
+  "SELECT count(*) FROM experiences WHERE tenant_id='default' AND fingerprint IN (
+    'stateful_form_login_v1',
+    'phpmyadmin_login_flow_v1',
+    'phpmyadmin_setup_cve_2009_1151_v1',
+    'credential_test_zero_attempts_diagnostic_v1'
+  );" | tr -d '[:space:]')"
+
+if [ "$seed_count" != "4" ]; then
+  echo "Error: experience seed verification failed (expected 4, got ${seed_count:-0})."
+  exit 1
+fi
+
+echo "  experience-db: healthy"
+echo "  persistent volume: clawpwn_pgdata"
+echo "  connection URL written to .env and .env.experience"
+echo "  experience seeds installed: $seed_count"
 
 # Add PATH to shell profile if not already there
 add_to_path() {

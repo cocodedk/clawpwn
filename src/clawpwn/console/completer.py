@@ -72,6 +72,9 @@ class CommandCompleter(Completer):
         "restart": [],
         "objective": ["show", "set", "clear"],
         "memory": ["show", "clear", "--limit"],
+        "fingerprint": [],
+        "search": ["--max-results"],
+        "credtest": ["--app-hint"],
     }
 
     DEPTH_VALUES = ["quick", "normal", "deep"]

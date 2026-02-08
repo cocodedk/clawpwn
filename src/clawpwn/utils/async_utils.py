@@ -4,9 +4,10 @@ import asyncio
 import gc
 import signal
 import sys
+import threading
 import warnings
 from collections.abc import Coroutine
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 T = TypeVar("T")
 
@@ -61,13 +62,8 @@ def _shutdown_default_executor(loop: asyncio.AbstractEventLoop) -> None:
         pass
 
 
-def safe_async_run[T](coro: Coroutine[Any, Any, T]) -> T:
-    """
-    Run an async coroutine with proper cleanup of subprocesses.
-
-    This prevents the 'Event loop is closed' RuntimeError that occurs
-    when subprocess transports are garbage collected after the loop closes.
-    """
+def _run_in_fresh_loop[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Run an async coroutine in a new loop with subprocess-safe cleanup."""
     if sys.platform == "win32":
         # Windows needs ProactorEventLoop for subprocess support
         loop = asyncio.ProactorEventLoop()
@@ -88,8 +84,8 @@ def safe_async_run[T](coro: Coroutine[Any, Any, T]) -> T:
         for task in asyncio.all_tasks(loop):
             task.cancel()
 
-    # Install signal handlers (Unix only)
-    if sys.platform != "win32":
+    # Install signal handlers only on Unix main thread.
+    if sys.platform != "win32" and threading.current_thread() is threading.main_thread():
         original_sigint = signal.signal(signal.SIGINT, signal_handler)
         original_sigterm = signal.signal(signal.SIGTERM, signal_handler)
 
@@ -112,11 +108,43 @@ def safe_async_run[T](coro: Coroutine[Any, Any, T]) -> T:
             loop.close()
 
         # Restore original signal handlers
-        if sys.platform != "win32":
+        if sys.platform != "win32" and threading.current_thread() is threading.main_thread():
             if original_sigint is not None:
                 signal.signal(signal.SIGINT, original_sigint)
             if original_sigterm is not None:
                 signal.signal(signal.SIGTERM, original_sigterm)
+
+
+def safe_async_run[T](coro: Coroutine[Any, Any, T]) -> T:
+    """
+    Run an async coroutine with proper cleanup of subprocesses.
+
+    If an event loop is already running in this thread (e.g. pytest-asyncio),
+    the coroutine is executed in a separate thread with its own event loop.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return _run_in_fresh_loop(coro)
+
+    result: T | None = None
+    error: BaseException | None = None
+
+    def _runner() -> None:
+        nonlocal result, error
+        try:
+            result = _run_in_fresh_loop(coro)
+        except BaseException as exc:
+            error = exc
+
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+
+    if error is not None:
+        raise error
+
+    return cast(T, result)
 
 
 def suppress_event_loop_closed_error() -> None:

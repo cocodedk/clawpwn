@@ -32,6 +32,9 @@ class InputRouter:
         "interactive",
         "objective",
         "memory",
+        "fingerprint",
+        "search",
+        "credtest",
     }
 
     def __init__(self, mode: InputMode = InputMode.AUTO) -> None:

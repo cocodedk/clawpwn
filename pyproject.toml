@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "prompt_toolkit>=3.0.43",
+    "duckduckgo-search>=7.0.0",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,12 @@ build-backend = "uv_build"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
+# Don't collect tests from source files
+norecursedirs = ["src"]
+markers = [
+    "autonomous: Full end-to-end autonomous agent tests (require real LLM API key)",
+    "slow: Tests that take longer than 10 seconds to complete",
+]
 filterwarnings = [
     "ignore:datetime.datetime.utcnow.*:DeprecationWarning",
     "ignore:The ``declarative_base()`` function.*:sqlalchemy.exc.MovedIn20Warning",

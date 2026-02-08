@@ -45,6 +45,10 @@ Installer behavior:
 - Installs network scanners: `nmap`, `masscan`, `rustscan`
 - Attempts web scanner installs: `nuclei`, `feroxbuster`, `ffuf`, `nikto`, and ZAP support (`zap-baseline.py`/`docker`)
 - Configures Linux scanner permissions via sudoers (see below)
+- Provisions centralized Postgres experience DB via Docker Compose (`pgvector/pgvector:pg16`)
+- Creates persistent Docker volume `clawpwn_pgdata` (survives container recreation/removal)
+- Generates `.env.experience` and writes `CLAWPWN_EXPERIENCE_DB_URL` to `.env`
+- Applies/updates experience schema and seeds exploitation knowledge automatically on each install
 
 ## Permissions
 
