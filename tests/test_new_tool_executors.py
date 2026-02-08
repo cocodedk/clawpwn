@@ -163,6 +163,52 @@ class TestAttackExecutors:
         assert "VALID CREDENTIALS FOUND" in result
         assert "admin:admin" in result
 
+    def test_execute_credential_test_with_hydra_cross_checks_builtin(
+        self, project_dir: Path, monkeypatch
+    ):
+        """Hydra misses should trigger builtin cross-check and guidance."""
+
+        async def mock_hydra(_target, _credentials, _app_hint):
+            return CredTestResult(
+                form_found=True,
+                form_action="https://example.com/login",
+                credentials_tested=2,
+                valid_credentials=[],
+                details=["Hydra exit code: 0"],
+            )
+
+        async def mock_builtin(_target, _credentials, _app_hint):
+            return CredTestResult(
+                form_found=True,
+                form_action="https://example.com/login",
+                credentials_tested=2,
+                valid_credentials=[("root", "password")],
+                details=["Builtin form test matched dashboard signal"],
+            )
+
+        monkeypatch.setattr(
+            "clawpwn.modules.credtest.test_credentials_with_hydra",
+            mock_hydra,
+        )
+        monkeypatch.setattr(
+            "clawpwn.modules.credtest.test_credentials",
+            mock_builtin,
+        )
+
+        result = execute_credential_test(
+            {
+                "target": "https://example.com/login",
+                "tool": "hydra",
+                "credentials": [["root", "password"]],
+            },
+            project_dir,
+        )
+
+        assert "Hydra vs builtin cross-check" in result
+        assert "Builtin detected valid credentials that hydra missed" in result
+        assert "root:password" in result
+        assert "Troubleshooting notes" in result
+
     def test_execute_credential_test_rejects_invalid_tool(self, project_dir: Path):
         """Credential test should reject unknown backend selectors."""
         result = execute_credential_test(
@@ -178,7 +224,12 @@ class TestAttackExecutors:
         script = 'print("Hello from script")'
 
         result = execute_run_custom_script(
-            {"script": script, "description": "Test script", "timeout": 5},
+            {
+                "script": script,
+                "description": "Test script",
+                "timeout": 5,
+                "user_approved": True,
+            },
             project_dir,
         )
 
@@ -204,7 +255,12 @@ sys.exit(1)
 """
 
         result = execute_run_custom_script(
-            {"script": script, "description": "Failing script", "timeout": 5},
+            {
+                "script": script,
+                "description": "Failing script",
+                "timeout": 5,
+                "user_approved": True,
+            },
             project_dir,
         )
 
@@ -216,8 +272,24 @@ sys.exit(1)
         script = 'print("HTTP 302 redirect observed - potential bypass")'
 
         result = execute_run_custom_script(
-            {"script": script, "description": "Heuristic SQLi check", "timeout": 5},
+            {
+                "script": script,
+                "description": "Heuristic SQLi check",
+                "timeout": 5,
+                "user_approved": True,
+            },
             project_dir,
         )
 
         assert "Validation note:" in result
+
+    def test_execute_run_custom_script_requires_explicit_approval(self, project_dir: Path):
+        """Custom script executor must not run without explicit approval."""
+        script = 'print("should not run")'
+
+        result = execute_run_custom_script(
+            {"script": script, "description": "Blocked script", "timeout": 5},
+            project_dir,
+        )
+
+        assert "Approval required" in result

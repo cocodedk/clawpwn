@@ -60,7 +60,8 @@ RUN_CUSTOM_SCRIPT_TOOL: dict[str, Any] = {
         "for a specific attack or test. The script runs in a subprocess with network access "
         "to the target. The script should be self-contained and use only standard library "
         "or already-installed packages. Output is captured and returned. "
-        "Examples: custom protocol fuzzing, specialized data extraction, unique exploit chains."
+        "Examples: custom protocol fuzzing, specialized data extraction, unique exploit chains. "
+        "Requires explicit user approval before execution."
     ),
     "input_schema": {
         "type": "object",
@@ -77,7 +78,14 @@ RUN_CUSTOM_SCRIPT_TOOL: dict[str, Any] = {
                 "type": "integer",
                 "description": "Timeout in seconds. Default 30.",
             },
+            "user_approved": {
+                "type": "boolean",
+                "description": (
+                    "Explicit user approval flag. Must be true only after the user clearly "
+                    "approves running this custom script."
+                ),
+            },
         },
-        "required": ["script", "description"],
+        "required": ["script", "description", "user_approved"],
     },
 }

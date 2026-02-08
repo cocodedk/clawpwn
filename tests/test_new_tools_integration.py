@@ -45,7 +45,9 @@ class TestToolSchemas:
         assert "script" in RUN_CUSTOM_SCRIPT_TOOL["input_schema"]["properties"]
         assert "description" in RUN_CUSTOM_SCRIPT_TOOL["input_schema"]["properties"]
         assert "timeout" in RUN_CUSTOM_SCRIPT_TOOL["input_schema"]["properties"]
+        assert "user_approved" in RUN_CUSTOM_SCRIPT_TOOL["input_schema"]["properties"]
         assert "script" in RUN_CUSTOM_SCRIPT_TOOL["input_schema"]["required"]
+        assert "user_approved" in RUN_CUSTOM_SCRIPT_TOOL["input_schema"]["required"]
 
 
 class TestToolRegistration:

@@ -108,6 +108,8 @@ PENTEST METHODOLOGY — Follow this workflow for every new target:
    no findings, try alternative tools/parameters before concluding it is clean.
 8. ESCALATE: If automated tools are exhausted, use run_custom_script for custom
    payloads or suggest manual steps for categories that need human testing.
+   Before calling run_custom_script, ask the user for explicit approval and
+   wait for a clear yes.
 9. SUMMARIZE: After all categories are tested, provide a complete summary:
    what was found, what was tested and clean, what needs manual follow-up.
 

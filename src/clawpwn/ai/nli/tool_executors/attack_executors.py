@@ -8,6 +8,17 @@ from typing import Any
 from clawpwn.utils.async_utils import safe_async_run
 
 
+def _hydra_troubleshooting_notes() -> list[str]:
+    """Common reasons hydra misses valid web form credentials."""
+    return [
+        "Dynamic CSRF/session tokens can invalidate static hydra form payloads.",
+        "Success/failure match strings may be too broad or incorrect for the target app.",
+        "Hidden fields, redirects, or multi-step login flows may not be fully modeled.",
+        "Rate limiting, lockouts, CAPTCHA, or WAF behavior can cause false negatives.",
+        "Use builtin form testing as a cross-check when hydra reports no hits.",
+    ]
+
+
 def execute_credential_test(params: dict[str, Any], _project_dir: Path) -> str:
     """Execute credential testing and format results."""
     target = params.get("target", "")
@@ -27,8 +38,12 @@ def execute_credential_test(params: dict[str, Any], _project_dir: Path) -> str:
 
     from clawpwn.modules.credtest import test_credentials, test_credentials_with_hydra
 
+    fallback_result = None
     if selected_tool == "hydra":
         result = safe_async_run(test_credentials_with_hydra(target, creds_list, app_hint))
+        # Hydra can miss valid creds on dynamic forms; always cross-check failures/errors.
+        if result.error or not result.valid_credentials:
+            fallback_result = safe_async_run(test_credentials(target, creds_list, app_hint))
     else:
         result = safe_async_run(test_credentials(target, creds_list, app_hint))
 
@@ -48,6 +63,26 @@ def execute_credential_test(params: dict[str, Any], _project_dir: Path) -> str:
             output.append(f"  • {username}:{password}")
     else:
         output.append("\nNo valid credentials found.")
+        if selected_tool == "hydra":
+            output.append("Hydra may miss dynamic web login forms.")
+
+    if fallback_result is not None:
+        output.append("\nHydra vs builtin cross-check:")
+        output.append(
+            f"  builtin tested {fallback_result.credentials_tested} credential pairs "
+            f"and found {len(fallback_result.valid_credentials)} valid."
+        )
+        if fallback_result.valid_credentials:
+            output.append("  Builtin detected valid credentials that hydra missed:")
+            for username, password in fallback_result.valid_credentials:
+                output.append(f"    • {username}:{password}")
+            output.append("  Likely cause: target login workflow requires dynamic form handling.")
+        else:
+            output.append("  Builtin also found no valid credentials.")
+
+        output.append("  Troubleshooting notes:")
+        for note in _hydra_troubleshooting_notes():
+            output.append(f"    • {note}")
 
     if result.details:
         output.append("\nDetails:")
@@ -92,9 +127,16 @@ def execute_run_custom_script(params: dict[str, Any], project_dir: Path) -> str:
     script = params.get("script", "")
     description = params.get("description", "Custom script")
     timeout = params.get("timeout", 30)
+    user_approved = bool(params.get("user_approved", False))
 
     if not script:
         return "Error: script parameter is required."
+    if not user_approved:
+        return (
+            "Approval required: custom script execution is blocked until the user explicitly "
+            "approves it. Ask: 'Allow creating/running this script? (yes/no)' and retry with "
+            "user_approved=true only if the user says yes."
+        )
 
     from clawpwn.tools.sandbox import run_sandboxed_script
 

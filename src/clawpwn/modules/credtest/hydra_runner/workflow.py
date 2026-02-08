@@ -1,8 +1,7 @@
-"""Hydra-backed credential testing."""
+"""Hydra credential testing workflow."""
 
 from __future__ import annotations
 
-import asyncio
 import tempfile
 from pathlib import Path
 from shutil import which
@@ -10,9 +9,9 @@ from urllib.parse import urlencode, urlparse
 
 import httpx
 
-from .candidates import build_credential_candidates
-from .helpers import extract_base_form_data, extract_field_name
-from .hydra_helpers import (
+from ..candidates import build_credential_candidates
+from ..helpers import extract_base_form_data, extract_field_name
+from ..hydra_helpers import (
     escape_hydra_segment,
     extract_valid_credentials,
     filter_hydra_compatible_pairs,
@@ -20,7 +19,8 @@ from .hydra_helpers import (
     hydra_failure_condition,
     resolve_form_action,
 )
-from .tester import CredTestResult
+from ..tester import CredTestResult
+from .process import run_hydra_command
 
 
 async def test_credentials_with_hydra(
@@ -133,6 +133,7 @@ async def test_credentials_with_hydra(
             "\n".join(f"{user}:{password}" for user, password in hydra_creds) + "\n",
             encoding="utf-8",
         )
+
         command = [
             hydra_bin,
             "-I",
@@ -153,22 +154,8 @@ async def test_credentials_with_hydra(
         details.append(f"Hydra target: {parsed.hostname}:{port}{form_path}")
         details.append(f"Hydra failure condition: {failure_cond}")
 
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(), timeout=180.0
-            )
-        except TimeoutError:
-            process.terminate()
-            try:
-                await asyncio.wait_for(process.wait(), timeout=3.0)
-            except TimeoutError:
-                process.kill()
-                await process.wait()
+        execution = await run_hydra_command(command, output_path, timeout=180.0)
+        if execution.timed_out:
             return CredTestResult(
                 form_found=True,
                 form_action=form_action,
@@ -178,19 +165,17 @@ async def test_credentials_with_hydra(
                 error="hydra timed out after 180 seconds.",
             )
 
-        stdout = stdout_bytes.decode(errors="replace")
-        stderr = stderr_bytes.decode(errors="replace")
-        file_output = (
-            output_path.read_text(encoding="utf-8", errors="ignore") if output_path.exists() else ""
-        )
-        combined_output = "\n".join(part for part in [stdout, stderr, file_output] if part)
-        valid_credentials = extract_valid_credentials(combined_output)
-        details.append(f"Hydra exit code: {process.returncode}")
+        valid_credentials = extract_valid_credentials(execution.combined_output)
+        details.append(f"Hydra exit code: {execution.returncode}")
 
         error: str | None = None
-        if process.returncode not in {0} and not valid_credentials:
-            first_error = (stderr.strip().splitlines() or stdout.strip().splitlines() or [""])[0]
-            error = first_error or f"hydra failed with exit code {process.returncode}"
+        if execution.returncode not in {0} and not valid_credentials:
+            first_error = (
+                execution.stderr.strip().splitlines()
+                or execution.stdout.strip().splitlines()
+                or [""]
+            )[0]
+            error = first_error or f"hydra failed with exit code {execution.returncode}"
 
     return CredTestResult(
         form_found=True,
