@@ -11,7 +11,7 @@ class WebScanConfig:
     """Shared runtime settings for web scanner plugins."""
 
     depth: str = "normal"
-    timeout: float = 30.0
+    timeout: float | None = None
     follow_redirects: bool = True
     concurrency: int = 10
     verbose: bool = False

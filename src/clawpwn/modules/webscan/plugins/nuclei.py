@@ -43,9 +43,9 @@ class NucleiWebScannerPlugin(WebScannerPlugin):
             target,
             "-jsonl",
             "-silent",
-            "-timeout",
-            str(max(5, int(config.timeout))),
         ]
+        if config.timeout is not None:
+            command.extend(["-timeout", str(max(5, int(config.timeout)))])
         if config.depth == "quick":
             command.extend(["-severity", "critical,high"])
         elif config.depth == "normal":
@@ -53,7 +53,7 @@ class NucleiWebScannerPlugin(WebScannerPlugin):
 
         result = await self._runner(
             command,
-            timeout=max(30.0, config.timeout + 10.0),
+            timeout=None if config.timeout is None else max(30.0, config.timeout + 10.0),
             verbose=config.verbose,
         )
         assert isinstance(result, CommandResult)

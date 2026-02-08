@@ -7,7 +7,7 @@ from clawpwn.modules.network import HostInfo, ServiceInfo
 
 from .shared import detect_scheme
 
-WEB_TOOLS = ("builtin", "nuclei", "feroxbuster", "ffuf", "nikto", "zap")
+WEB_TOOLS = ("builtin", "nuclei", "feroxbuster", "ffuf", "nikto", "searchsploit", "zap")
 
 
 def normalize_verbose(verbose: bool) -> bool:

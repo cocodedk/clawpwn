@@ -48,7 +48,7 @@ class WPScanWebScannerPlugin(WebScannerPlugin):
         command = self._build_command(binary, target, config)
         result = await self._runner(
             command,
-            timeout=max(120.0, config.timeout * 3),
+            timeout=None if config.timeout is None else max(120.0, config.timeout * 3),
             allowed_exit_codes=(0, 1, 2, 3, 4, 5),
             verbose=config.verbose,
         )

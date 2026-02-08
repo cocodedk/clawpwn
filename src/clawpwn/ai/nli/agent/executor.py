@@ -62,6 +62,7 @@ def run_agent_loop(
             messages=messages,
             tools=tools,
             system_prompt=system_prompt,
+            model=llm.model,  # Use main model (Sonnet), not routing model (Haiku)
             max_tokens=ROUTING_MAX_TOKENS,
             debug=debug,
             thinking_budget=THINKING_BUDGET,
@@ -88,7 +89,10 @@ def run_agent_loop(
         for tp in text_parts:
             _emit(tp)
 
-        if response.stop_reason != "tool_use" or not tool_calls:
+        # Some providers can return tool_use blocks even when stop_reason is
+        # not exactly "tool_use" (e.g., max_tokens). Execute tool calls whenever
+        # they are present; only finalize when no tool calls are returned.
+        if not tool_calls:
             # Final text answer — use only this round's text
             final = "\n".join(last_text_parts) if last_text_parts else "Done."
             return build_result(

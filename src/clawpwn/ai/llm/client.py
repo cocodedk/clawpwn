@@ -46,10 +46,10 @@ class LLMClient:
             model
             or get_llm_model(project_dir)
             or {
-                "anthropic": "claude-3-5-sonnet-20241022",
+                "anthropic": "claude-sonnet-4-5-20250929",
                 "openai": "gpt-4o",
                 "openrouter": "openai/gpt-4o-mini",
-            }.get(self.provider, "claude-3-5-sonnet-20241022")
+            }.get(self.provider, "claude-sonnet-4-5-20250929")
         )
 
         self.base_url = get_llm_base_url(project_dir)

@@ -19,6 +19,7 @@ from .availability import (
     execute_suggest_tools,
     format_availability_report,
 )
+from .plan_executors import execute_save_plan, execute_update_plan_step
 from .recon_executors import execute_fingerprint_target, execute_web_search
 from .scan_executors import (
     execute_discover_hosts,
@@ -27,6 +28,7 @@ from .scan_executors import (
 )
 from .support_executors import (
     execute_check_status,
+    execute_list_recent_artifacts,
     execute_research_vulnerabilities,
     execute_set_target,
     execute_show_help,
@@ -42,12 +44,15 @@ __all__ = [
     "execute_credential_test",
     "execute_discover_hosts",
     "execute_fingerprint_target",
+    "execute_list_recent_artifacts",
     "execute_network_scan",
     "execute_research_vulnerabilities",
     "execute_run_custom_script",
+    "execute_save_plan",
     "execute_set_target",
     "execute_show_help",
     "execute_suggest_tools",
+    "execute_update_plan_step",
     "execute_web_scan",
     "execute_web_search",
     "format_availability_report",
@@ -65,12 +70,15 @@ TOOL_EXECUTORS: dict[str, Any] = {
     "set_target": execute_set_target,
     "research_vulnerabilities": execute_research_vulnerabilities,
     "show_help": execute_show_help,
+    "list_recent_artifacts": execute_list_recent_artifacts,
     "check_available_tools": execute_check_available_tools,
     "suggest_tools": execute_suggest_tools,
     "web_search": execute_web_search,
     "fingerprint_target": execute_fingerprint_target,
     "credential_test": execute_credential_test,
     "run_custom_script": execute_run_custom_script,
+    "save_plan": execute_save_plan,
+    "update_plan_step": execute_update_plan_step,
 }
 
 

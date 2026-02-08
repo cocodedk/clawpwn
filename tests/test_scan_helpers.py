@@ -17,6 +17,7 @@ def test_parse_web_tools_all_keyword() -> None:
         "feroxbuster",
         "ffuf",
         "nikto",
+        "searchsploit",
         "zap",
     ]
 

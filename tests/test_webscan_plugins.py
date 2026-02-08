@@ -10,6 +10,7 @@ from clawpwn.modules.webscan.plugins.feroxbuster import FeroxbusterWebScannerPlu
 from clawpwn.modules.webscan.plugins.ffuf import FFUFWebScannerPlugin
 from clawpwn.modules.webscan.plugins.nikto import NiktoWebScannerPlugin
 from clawpwn.modules.webscan.plugins.nuclei import NucleiWebScannerPlugin
+from clawpwn.modules.webscan.plugins.searchsploit import SearchsploitWebScannerPlugin
 from clawpwn.modules.webscan.plugins.zap import ZAPWebScannerPlugin
 from clawpwn.modules.webscan.runtime import CommandResult
 
@@ -149,6 +150,37 @@ async def test_nikto_plugin_parses_issue_lines(monkeypatch: pytest.MonkeyPatch) 
 
     assert len(findings) == 2
     assert any(f.severity == "high" for f in findings)
+
+
+@pytest.mark.asyncio
+async def test_searchsploit_plugin_parses_json_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    sample = json.dumps(
+        {
+            "RESULTS_EXPLOIT": [
+                {
+                    "Title": "phpMyAdmin 4.x - SQL Injection",
+                    "EDB-ID": "12345",
+                    "Path": "php/webapps/12345.txt",
+                }
+            ]
+        }
+    )
+
+    async def fake_runner(*_args, **_kwargs):
+        return CommandResult(command=["searchsploit"], returncode=0, stdout=sample, stderr="")
+
+    monkeypatch.setattr(
+        "clawpwn.modules.webscan.plugins.searchsploit.resolve_binary",
+        lambda _: "/bin/searchsploit",
+    )
+    plugin = SearchsploitWebScannerPlugin(command_runner=fake_runner)
+
+    findings = await plugin.scan("https://example.com/phpmyadmin", WebScanConfig(depth="quick"))
+
+    assert len(findings) == 1
+    assert findings[0].tool == "searchsploit"
+    assert findings[0].severity == "high"
+    assert "Exploit-DB match" in findings[0].title
 
 
 def test_zap_plugin_parses_alert_json(tmp_path: Path) -> None:

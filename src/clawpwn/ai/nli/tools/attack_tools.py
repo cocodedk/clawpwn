@@ -19,6 +19,14 @@ CREDENTIAL_TEST_TOOL: dict[str, Any] = {
                 "type": "string",
                 "description": "Target URL containing the login form.",
             },
+            "tool": {
+                "type": "string",
+                "enum": ["builtin", "hydra"],
+                "description": (
+                    "Credential testing backend. Use 'builtin' for adaptive in-app checks "
+                    "and response hints; use 'hydra' for external brute-force execution."
+                ),
+            },
             "credentials": {
                 "type": "array",
                 "items": {

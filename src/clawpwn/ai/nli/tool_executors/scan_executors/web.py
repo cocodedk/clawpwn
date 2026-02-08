@@ -30,7 +30,7 @@ def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
     vuln_cats = params.get("vuln_categories") or []
     scan_types = vuln_cats if vuln_cats else ["all"]
     tools_list = params.get("tools") or ["builtin"]
-    timeout = params.get("timeout", 45.0)
+    timeout = params.get("timeout")
     concurrency = max(1, params.get("concurrency", 10))
 
     orchestrator = WebScanOrchestrator(
@@ -53,6 +53,7 @@ def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
             target, config=config, tools=tools_list, progress=_progress
         )
     )
+    feedback = _collect_attack_feedback(findings)
 
     # Log the scan action to project database
     try:
@@ -73,22 +74,29 @@ def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
                         "depth": depth,
                         "target": target,
                         "findings_count": len(findings),
+                        "attack_feedback": feedback,
                     }
                 ),
             )
     except Exception:
         pass  # Don't fail the scan if logging fails
 
-    return _format_scan_findings(findings, errors, target)
+    return _format_scan_findings(findings, errors, target, feedback)
 
 
-def _format_scan_findings(findings: list, errors: list, target: str) -> str:
+def _format_scan_findings(
+    findings: list, errors: list, target: str, feedback: dict[str, Any]
+) -> str:
     """Compact summary of web scan results for Claude (token-efficient)."""
     parts: list[str] = [f"Scan of {target} complete."]
 
     if errors:
         err_lines = [enrich_missing_tool_error(f"{e.tool}: {e.message}") for e in errors]
         parts.append("Tool issues: " + "; ".join(err_lines))
+
+    feedback_line = _render_feedback_summary(feedback)
+    if feedback_line:
+        parts.append(feedback_line)
 
     if not findings:
         parts.append("No vulnerabilities found.")
@@ -116,3 +124,50 @@ def _format_scan_findings(findings: list, errors: list, target: str) -> str:
 
 def _sev_rank(severity: str) -> int:
     return {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}.get(severity, 5)
+
+
+def _collect_attack_feedback(findings: list) -> dict[str, Any]:
+    hints: list[str] = []
+    blocks: list[str] = []
+    policy = "continue"
+    reason = ""
+    for finding in findings:
+        raw = getattr(finding, "raw", None)
+        if not isinstance(raw, dict):
+            continue
+        for hint in raw.get("feedback_hints", []):
+            if hint not in hints:
+                hints.append(hint)
+        for block in raw.get("feedback_blocks", []):
+            if block not in blocks:
+                blocks.append(block)
+        if raw.get("feedback_policy"):
+            policy = raw["feedback_policy"]
+        if raw.get("feedback_reason"):
+            reason = raw["feedback_reason"]
+
+    return {
+        "hints": hints[:5],
+        "blocks": blocks[:5],
+        "policy": policy,
+        "reason": reason,
+    }
+
+
+def _render_feedback_summary(feedback: dict[str, Any]) -> str:
+    hints = feedback.get("hints", [])
+    blocks = feedback.get("blocks", [])
+    policy = feedback.get("policy", "continue")
+    reason = feedback.get("reason", "")
+    if not hints and not blocks:
+        return ""
+
+    parts: list[str] = ["Attack feedback:"]
+    if hints:
+        parts.append(f"hints={len(hints)}")
+    if blocks:
+        parts.append(f"blocks={len(blocks)}")
+    parts.append(f"policy={policy}")
+    if reason:
+        parts.append(f"reason={reason}")
+    return " ".join(parts)

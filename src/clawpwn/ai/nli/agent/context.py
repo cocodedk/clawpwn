@@ -52,6 +52,15 @@ def get_project_context(project_dir: Path) -> str:
                         depth = details.get("depth", "normal")
                         findings_count = details.get("findings_count", 0)
                         action_str = f"web_scan({tools_used}, {cats}, {depth}) on {target} -> {findings_count} findings"
+                        feedback = details.get("attack_feedback", {})
+                        if isinstance(feedback, dict):
+                            hints = len(feedback.get("hints", []))
+                            blocks = len(feedback.get("blocks", []))
+                            policy = feedback.get("policy", "continue")
+                            if hints or blocks:
+                                action_str += (
+                                    f", feedback: hints={hints}, blocks={blocks}, policy={policy}"
+                                )
                     elif tool_type == "network_scan":
                         scanner = details.get("scanner", "nmap")
                         depth = details.get("depth", "deep")
@@ -83,6 +92,11 @@ def get_project_context(project_dir: Path) -> str:
                 except (json.JSONDecodeError, KeyError):
                     # Fallback to message if JSON parsing fails
                     parts.append(f"- {log.message}")
+
+        # Current attack plan
+        plan_status = session.format_plan_status()
+        if plan_status:
+            parts.append(f"\n{plan_status}")
 
         # Findings grouped by attack type
         findings_by_type = session.get_findings_by_attack_type()

@@ -54,7 +54,7 @@ class FeroxbusterWebScannerPlugin(WebScannerPlugin):
             ]
             await self._runner(
                 command,
-                timeout=max(60.0, config.timeout + 30.0),
+                timeout=None if config.timeout is None else max(60.0, config.timeout + 30.0),
                 verbose=config.verbose,
             )
             return self._parse_output(out_file, target, depth=config.depth)

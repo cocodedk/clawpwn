@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -127,7 +128,7 @@ def _log_script_execution(project_dir: Path, script_path: Path, exit_code: int) 
             level="INFO",
             phase="exploit",
             message=f"Executed custom script: {script_path.name}",
-            details={"script_path": str(script_path), "exit_code": exit_code},
+            details=json.dumps({"script_path": str(script_path), "exit_code": exit_code}),
         )
     except Exception:
         pass  # Don't fail if logging fails

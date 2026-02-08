@@ -21,6 +21,7 @@ EXTERNAL_TOOLS: dict[str, dict[str, str]] = {
     "nikto": {"binary": "nikto", "install": "sudo apt install nikto"},
     "feroxbuster": {"binary": "feroxbuster", "install": "cargo install feroxbuster"},
     "ffuf": {"binary": "ffuf", "install": "go install github.com/ffuf/ffuf/v2@latest"},
+    "searchsploit": {"binary": "searchsploit", "install": "sudo apt install exploitdb"},
     "zap": {
         "binary": "zaproxy",
         "install": "sudo apt install zaproxy  # or Docker: docker pull zaproxy/zap-stable",

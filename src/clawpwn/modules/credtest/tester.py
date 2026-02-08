@@ -7,7 +7,14 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from .defaults import APP_SPECIFIC_CREDENTIALS, DEFAULT_CREDENTIALS
+from clawpwn.modules.attack_feedback import (
+    decide_attack_policy,
+    extract_attack_signals,
+    summarize_signals,
+)
+
+from .candidates import build_credential_candidates
+from .helpers import extract_base_form_data, extract_field_name, is_login_successful
 
 
 @dataclass
@@ -19,6 +26,10 @@ class CredTestResult:
     credentials_tested: int
     valid_credentials: list[tuple[str, str]]
     details: list[str] = field(default_factory=list)
+    hints: list[str] = field(default_factory=list)
+    block_signals: list[str] = field(default_factory=list)
+    policy_action: str = "continue"
+    stopped_early: bool = False
     error: str | None = None
 
 
@@ -39,6 +50,11 @@ async def test_credentials(
     form_found = False
     form_action = ""
     credentials_tested = 0
+    hints: list[str] = []
+    block_signals: list[str] = []
+    policy_action = "continue"
+    stopped_early = False
+    block_streak = 0
 
     try:
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -46,12 +62,15 @@ async def test_credentials(
             response = await client.get(url)
             html = response.text
 
-            # Look for login form
-            form_match = re.search(
-                r"<form[^>]*>.*?</form>",
-                html,
-                re.DOTALL | re.IGNORECASE,
-            )
+            # Look for login form — prefer the form that contains a password field
+            forms = re.findall(r"<form[^>]*>.*?</form>", html, re.DOTALL | re.IGNORECASE)
+            form_match = None
+            for candidate in forms:
+                if re.search(r'type=["\']password["\']', candidate, re.IGNORECASE):
+                    form_match = candidate
+                    break
+            if form_match is None and forms:
+                form_match = forms[0]
 
             if not form_match:
                 return CredTestResult(
@@ -63,7 +82,7 @@ async def test_credentials(
                 )
 
             form_found = True
-            form_html = form_match.group(0)
+            form_html = form_match
 
             # Extract form action
             action_match = re.search(r'action=["\']([^"\']+)["\']', form_html, re.IGNORECASE)
@@ -78,8 +97,9 @@ async def test_credentials(
                 form_action = url  # Submit to same URL
 
             # Extract input field names
-            username_field = _extract_field_name(form_html, ["user", "login", "email"])
-            password_field = _extract_field_name(form_html, ["pass", "pwd"])
+            username_field = extract_field_name(form_html, ["user", "login", "email"])
+            password_field = extract_field_name(form_html, ["pass", "pwd"])
+            base_form_data = extract_base_form_data(form_html)
 
             if not username_field or not password_field:
                 return CredTestResult(
@@ -96,33 +116,65 @@ async def test_credentials(
             details.append(f"Form action: {form_action}")
             details.append(f"Username field: {username_field}, Password field: {password_field}")
 
-            # Determine credentials to test
-            if credentials:
-                test_creds = credentials
-            elif app_hint and app_hint.lower() in APP_SPECIFIC_CREDENTIALS:
-                test_creds = APP_SPECIFIC_CREDENTIALS[app_hint.lower()]
-                details.append(f"Using {len(test_creds)} app-specific credentials for {app_hint}")
-            else:
-                test_creds = DEFAULT_CREDENTIALS
-                details.append(f"Using {len(test_creds)} common default credentials")
+            test_creds, strategy = build_credential_candidates(credentials, app_hint)
+            details.append(
+                f"Credential strategy: {strategy} ({len(test_creds)} candidates, capped)"
+            )
 
             # Test each credential pair
             for username, password in test_creds:
                 credentials_tested += 1
                 data = {
+                    **base_form_data,
                     username_field: username,
                     password_field: password,
                 }
 
                 try:
                     login_response = await client.post(form_action, data=data)
+                    signals = extract_attack_signals(
+                        login_response.text,
+                        status_code=login_response.status_code,
+                        headers=login_response.headers,
+                    )
+
+                    hint_messages = summarize_signals(signals, "hint", limit=2)
+                    for message in hint_messages:
+                        if message not in hints:
+                            hints.append(message)
+                            details.append(f"Hint observed ({username}): {message}")
+
+                    block_messages = summarize_signals(signals, "block", limit=2)
+                    if block_messages:
+                        block_streak += 1
+                        for message in block_messages:
+                            if message not in block_signals:
+                                block_signals.append(message)
+                            details.append(f"Block signal ({username}): {message}")
+                    else:
+                        block_streak = 0
+
+                    decision = decide_attack_policy(signals, block_streak=block_streak)
+                    if decision.action != "continue":
+                        policy_action = decision.action
+                        details.append(f"Policy action: {decision.action} ({decision.reason})")
+                    if decision.action == "stop_and_replan":
+                        stopped_early = True
+                        break
 
                     # Check for success indicators
-                    if _is_login_successful(login_response):
+                    if is_login_successful(login_response, password_field):
                         valid_credentials.append((username, password))
                         details.append(f"✓ Valid credentials found: {username}:{password}")
                 except Exception as e:
                     details.append(f"Error testing {username}:{password} - {e}")
+                    signals = extract_attack_signals(str(e))
+                    decision = decide_attack_policy(signals, block_streak=block_streak + 1)
+                    if decision.action == "stop_and_replan":
+                        policy_action = decision.action
+                        stopped_early = True
+                        details.append(f"Policy action: {decision.action} ({decision.reason})")
+                        break
 
     except Exception as e:
         return CredTestResult(
@@ -131,6 +183,10 @@ async def test_credentials(
             credentials_tested=credentials_tested,
             valid_credentials=valid_credentials,
             details=details,
+            hints=hints,
+            block_signals=block_signals,
+            policy_action=policy_action,
+            stopped_early=stopped_early,
             error=str(e),
         )
 
@@ -140,54 +196,8 @@ async def test_credentials(
         credentials_tested=credentials_tested,
         valid_credentials=valid_credentials,
         details=details,
+        hints=hints,
+        block_signals=block_signals,
+        policy_action=policy_action,
+        stopped_early=stopped_early,
     )
-
-
-def _extract_field_name(html: str, patterns: list[str]) -> str:
-    """Extract input field name matching any of the patterns."""
-    for pattern in patterns:
-        match = re.search(
-            rf'<input[^>]*name=["\']([^"\']*{pattern}[^"\']*)["\']',
-            html,
-            re.IGNORECASE,
-        )
-        if match:
-            return match.group(1)
-    return ""
-
-
-def _is_login_successful(response: httpx.Response) -> bool:
-    """Determine if login was successful based on response."""
-    # Check for common failure indicators
-    failure_indicators = [
-        "invalid",
-        "incorrect",
-        "failed",
-        "error",
-        "wrong",
-        "denied",
-    ]
-
-    text_lower = response.text.lower()
-    for indicator in failure_indicators:
-        if indicator in text_lower:
-            return False
-
-    # Check for success indicators
-    success_indicators = [
-        "dashboard",
-        "welcome",
-        "logout",
-        "profile",
-        "settings",
-    ]
-
-    for indicator in success_indicators:
-        if indicator in text_lower:
-            return True
-
-    # If redirected to a different page, likely successful
-    if len(response.history) > 0:
-        return True
-
-    return False

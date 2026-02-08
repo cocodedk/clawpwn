@@ -47,7 +47,7 @@ class TestSSLWebScannerPlugin(WebScannerPlugin):
             command = self._build_command(binary, target, config, out_file)
             await self._runner(
                 command,
-                timeout=max(180.0, config.timeout * 4),
+                timeout=None if config.timeout is None else max(180.0, config.timeout * 4),
                 allowed_exit_codes=(0, 1, 2),
                 verbose=config.verbose,
             )

@@ -11,7 +11,7 @@ from clawpwn.ai.nli.constants import VULN_CATEGORIES, VULN_CATEGORY_ALIASES
 from clawpwn.ai.nli.tool_executors import EXTERNAL_TOOLS
 from clawpwn.ai.nli.tools import WEB_SCAN_TOOL
 from clawpwn.modules.webscan import WebScanConfig
-from clawpwn.modules.webscan.plugins.sqlmap import SqlmapWebScannerPlugin
+from clawpwn.modules.webscan.plugins.sqlmap import SqlmapWebScannerPlugin, _SqlmapRequestContext
 from clawpwn.modules.webscan.plugins.testssl import TestSSLWebScannerPlugin
 from clawpwn.modules.webscan.plugins.wpscan import WPScanWebScannerPlugin
 from clawpwn.modules.webscan.runtime import CommandResult
@@ -75,6 +75,152 @@ class TestSqlmapPlugin:
         await plugin.scan("http://t", WebScanConfig(depth="deep"))
         assert "--level=5" in captured[-1]
         assert "--risk=3" in captured[-1]
+
+    @pytest.mark.asyncio
+    async def test_stateful_second_pass_uses_cookie_data_and_csrf(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: list[list[str]] = []
+        first = CommandResult(command=["sqlmap"], returncode=0, stdout="", stderr="")
+        second = CommandResult(
+            command=["sqlmap"],
+            returncode=0,
+            stdout="Parameter: username (POST)\nType: boolean-based blind\n",
+            stderr="",
+        )
+        responses = [first, second]
+
+        async def fake_runner(command, **_kwargs):
+            captured.append(list(command))
+            return responses.pop(0)
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.sqlmap.resolve_binary", lambda _: "/bin/sqlmap"
+        )
+        plugin = SqlmapWebScannerPlugin(command_runner=fake_runner)
+
+        async def fake_context(_target: str) -> _SqlmapRequestContext:
+            return _SqlmapRequestContext(
+                action_url="http://target/phpMyAdmin/index.php",
+                cookie_header="PHPSESSID=abc123",
+                post_data="pma_username=test&pma_password=test&token=abc",
+                csrf_token="token",
+            )
+
+        monkeypatch.setattr(plugin, "_derive_request_context", fake_context)
+        findings = await plugin.scan("http://target/phpMyAdmin/", WebScanConfig(depth="deep"))
+
+        assert len(captured) == 2
+        second_command = captured[1]
+        assert "--cookie" in second_command
+        assert "PHPSESSID=abc123" in second_command
+        assert "--data" in second_command
+        assert "pma_username=test&pma_password=test&token=abc" in second_command
+        assert "--csrf-token" in second_command
+        assert "token" in second_command
+        assert findings
+
+    @pytest.mark.asyncio
+    async def test_timeout_triggers_stateful_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: list[list[str]] = []
+        second = CommandResult(
+            command=["sqlmap"],
+            returncode=0,
+            stdout="Parameter: username (POST)\nType: boolean-based blind\n",
+            stderr="",
+        )
+        calls = 0
+
+        async def fake_runner(command, **_kwargs):
+            nonlocal calls
+            calls += 1
+            captured.append(list(command))
+            if calls == 1:
+                raise RuntimeError("Command timed out: sqlmap")
+            return second
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.sqlmap.resolve_binary", lambda _: "/bin/sqlmap"
+        )
+        plugin = SqlmapWebScannerPlugin(command_runner=fake_runner)
+
+        async def fake_context(_target: str) -> _SqlmapRequestContext:
+            return _SqlmapRequestContext(
+                action_url="http://target/phpMyAdmin/index.php",
+                cookie_header="PHPSESSID=abc123",
+                post_data="pma_username=test&pma_password=test&token=abc",
+                csrf_token="token",
+            )
+
+        monkeypatch.setattr(plugin, "_derive_request_context", fake_context)
+        findings = await plugin.scan("http://target/phpMyAdmin/", WebScanConfig(depth="deep"))
+
+        assert len(captured) == 2
+        assert "--forms" in captured[0]
+        assert "--data" in captured[1]
+        assert findings
+
+    @pytest.mark.asyncio
+    async def test_returns_feedback_finding_when_only_hints_present(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stdout = "#1045 - Access denied for user 'admin'@'localhost' (using password: NO)"
+
+        async def fake_runner(*_args, **_kwargs):
+            return CommandResult(command=["sqlmap"], returncode=0, stdout=stdout, stderr="")
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.sqlmap.resolve_binary", lambda _: "/bin/sqlmap"
+        )
+        plugin = SqlmapWebScannerPlugin(command_runner=fake_runner)
+        findings = await plugin.scan("http://target/phpMyAdmin/", WebScanConfig(depth="quick"))
+
+        assert len(findings) == 1
+        assert findings[0].attack_type == "Attack Feedback"
+        assert "hint" in findings[0].evidence.lower()
+
+    @pytest.mark.asyncio
+    async def test_returns_feedback_finding_when_block_signals_present(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stdout = "HTTP 429 Too many requests. Request blocked by WAF."
+
+        async def fake_runner(*_args, **_kwargs):
+            return CommandResult(command=["sqlmap"], returncode=0, stdout=stdout, stderr="")
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.sqlmap.resolve_binary", lambda _: "/bin/sqlmap"
+        )
+        plugin = SqlmapWebScannerPlugin(command_runner=fake_runner)
+        findings = await plugin.scan("http://target/phpMyAdmin/", WebScanConfig(depth="quick"))
+
+        assert len(findings) == 1
+        assert findings[0].attack_type == "Attack Feedback"
+        assert findings[0].raw.get("feedback_policy") in {"backoff", "stop_and_replan"}
+
+    @pytest.mark.asyncio
+    async def test_injection_findings_include_feedback_metadata(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stdout = (
+            "Parameter: id (GET)\n"
+            "Type: boolean-based blind\n"
+            "#1045 - Access denied for user 'admin'@'localhost' (using password: NO)\n"
+        )
+
+        async def fake_runner(*_args, **_kwargs):
+            return CommandResult(command=["sqlmap"], returncode=0, stdout=stdout, stderr="")
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.sqlmap.resolve_binary", lambda _: "/bin/sqlmap"
+        )
+        plugin = SqlmapWebScannerPlugin(command_runner=fake_runner)
+        findings = await plugin.scan("http://target/page?id=1", WebScanConfig(depth="quick"))
+
+        assert findings
+        assert "feedback_policy" in findings[0].raw
 
 
 # ---------------------------------------------------------------------------
@@ -287,14 +433,14 @@ class TestNLIWiring:
             )
 
     def test_external_tools_registry(self) -> None:
-        for tool in ("sqlmap", "wpscan", "testssl"):
+        for tool in ("sqlmap", "wpscan", "testssl", "searchsploit"):
             assert tool in EXTERNAL_TOOLS, f"{tool} not in EXTERNAL_TOOLS"
             assert "binary" in EXTERNAL_TOOLS[tool]
             assert "install" in EXTERNAL_TOOLS[tool]
 
     def test_web_scan_tool_enum_includes_new_tools(self) -> None:
         tools_enum = WEB_SCAN_TOOL["input_schema"]["properties"]["tools"]["items"]["enum"]
-        for tool in ("sqlmap", "wpscan", "testssl"):
+        for tool in ("sqlmap", "wpscan", "testssl", "searchsploit"):
             assert tool in tools_enum, f"{tool} not in WEB_SCAN_TOOL tools enum"
 
     def test_vuln_categories_enum_includes_new_categories(self) -> None:
@@ -307,5 +453,131 @@ class TestNLIWiring:
 
         plugins = create_default_webscan_plugins(None, scanner_factory=lambda _: None)
         names = {p.name for p in plugins}
-        for name in ("sqlmap", "wpscan", "testssl"):
+        for name in ("sqlmap", "wpscan", "testssl", "searchsploit"):
             assert name in names, f"{name} not in factory plugins"
+
+
+# ---------------------------------------------------------------------------
+# Timeout handling
+# ---------------------------------------------------------------------------
+
+
+class TestTimeoutDefaults:
+    """Verify that timeout defaults to None (no timeout) across models and plugins."""
+
+    def test_webscan_config_default_timeout_is_none(self) -> None:
+        config = WebScanConfig()
+        assert config.timeout is None
+
+    def test_webscan_config_explicit_timeout(self) -> None:
+        config = WebScanConfig(timeout=120.0)
+        assert config.timeout == 120.0
+
+    def test_scan_config_default_timeout_is_none(self) -> None:
+        from clawpwn.modules.scanner.models import ScanConfig
+
+        config = ScanConfig(target="http://t")
+        assert config.timeout is None
+
+    def test_web_scan_tool_schema_no_default_timeout(self) -> None:
+        """The web_scan tool schema describes timeout as no-default."""
+        from clawpwn.ai.nli.tools import WEB_SCAN_TOOL
+
+        desc = WEB_SCAN_TOOL["input_schema"]["properties"]["timeout"]["description"]
+        assert "no default" in desc.lower()
+        assert "run to completion" in desc.lower()
+
+
+class TestPluginNoneTimeout:
+    """Verify that plugins pass timeout=None to run_command when config.timeout is None."""
+
+    @pytest.mark.asyncio
+    async def test_nuclei_none_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from clawpwn.modules.webscan.plugins.nuclei import NucleiWebScannerPlugin
+
+        captured_kwargs: list[dict] = []
+
+        async def capture_runner(command, **kwargs):
+            captured_kwargs.append(kwargs)
+            return CommandResult(command=command, returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.nuclei.resolve_binary", lambda _: "/bin/nuclei"
+        )
+        plugin = NucleiWebScannerPlugin(command_runner=capture_runner)
+        await plugin.scan("http://t", WebScanConfig())
+
+        assert captured_kwargs[0]["timeout"] is None
+
+    @pytest.mark.asyncio
+    async def test_nuclei_explicit_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from clawpwn.modules.webscan.plugins.nuclei import NucleiWebScannerPlugin
+
+        captured_kwargs: list[dict] = []
+
+        async def capture_runner(command, **kwargs):
+            captured_kwargs.append(kwargs)
+            return CommandResult(command=command, returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.nuclei.resolve_binary", lambda _: "/bin/nuclei"
+        )
+        plugin = NucleiWebScannerPlugin(command_runner=capture_runner)
+        await plugin.scan("http://t", WebScanConfig(timeout=60.0))
+
+        assert captured_kwargs[0]["timeout"] == max(30.0, 60.0 + 10.0)
+
+    @pytest.mark.asyncio
+    async def test_nuclei_no_cli_timeout_when_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from clawpwn.modules.webscan.plugins.nuclei import NucleiWebScannerPlugin
+
+        captured_commands: list[list[str]] = []
+
+        async def capture_runner(command, **_kwargs):
+            captured_commands.append(list(command))
+            return CommandResult(command=command, returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.nuclei.resolve_binary", lambda _: "/bin/nuclei"
+        )
+        plugin = NucleiWebScannerPlugin(command_runner=capture_runner)
+        await plugin.scan("http://t", WebScanConfig())
+
+        assert "-timeout" not in captured_commands[0]
+
+    @pytest.mark.asyncio
+    async def test_nikto_none_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from clawpwn.modules.webscan.plugins.nikto import NiktoWebScannerPlugin
+
+        captured_kwargs: list[dict] = []
+        captured_commands: list[list[str]] = []
+
+        async def capture_runner(command, **kwargs):
+            captured_kwargs.append(kwargs)
+            captured_commands.append(list(command))
+            return CommandResult(command=command, returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.nikto.resolve_binary", lambda _: "/bin/nikto"
+        )
+        plugin = NiktoWebScannerPlugin(command_runner=capture_runner)
+        await plugin.scan("http://t", WebScanConfig())
+
+        assert captured_kwargs[0]["timeout"] is None
+        assert "-maxtime" not in captured_commands[0]
+
+    @pytest.mark.asyncio
+    async def test_sqlmap_none_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_kwargs: list[dict] = []
+
+        async def capture_runner(command, **kwargs):
+            captured_kwargs.append(kwargs)
+            return CommandResult(command=command, returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(
+            "clawpwn.modules.webscan.plugins.sqlmap.resolve_binary", lambda _: "/bin/sqlmap"
+        )
+        plugin = SqlmapWebScannerPlugin(command_runner=capture_runner)
+        await plugin.scan("http://t", WebScanConfig())
+
+        assert captured_kwargs[0]["timeout"] is None

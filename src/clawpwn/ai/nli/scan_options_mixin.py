@@ -4,7 +4,15 @@ import re
 
 from clawpwn.ai.nli.constants import VULN_CATEGORIES, VULN_CATEGORY_ALIASES
 
-SUPPORTED_WEB_TOOLS = ("builtin", "nuclei", "feroxbuster", "ffuf", "nikto", "zap")
+SUPPORTED_WEB_TOOLS = (
+    "builtin",
+    "nuclei",
+    "feroxbuster",
+    "ffuf",
+    "nikto",
+    "searchsploit",
+    "zap",
+)
 
 
 class ScanOptionsMixin:

@@ -77,3 +77,11 @@ class TestAvailabilityUpdates:
         assert "hydra" in EXTERNAL_TOOLS
         assert EXTERNAL_TOOLS["hydra"]["binary"] == "hydra"
         assert "install" in EXTERNAL_TOOLS["hydra"]
+
+    def test_searchsploit_in_external_tools(self):
+        """Test that searchsploit was added to EXTERNAL_TOOLS."""
+        from clawpwn.ai.nli.tool_executors.availability import EXTERNAL_TOOLS
+
+        assert "searchsploit" in EXTERNAL_TOOLS
+        assert EXTERNAL_TOOLS["searchsploit"]["binary"] == "searchsploit"
+        assert "install" in EXTERNAL_TOOLS["searchsploit"]

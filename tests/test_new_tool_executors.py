@@ -11,6 +11,7 @@ from clawpwn.ai.nli.tool_executors import (
     execute_run_custom_script,
     execute_web_search,
 )
+from clawpwn.modules.credtest import CredTestResult
 
 
 class TestReconExecutors:
@@ -132,6 +133,46 @@ class TestAttackExecutors:
 
         assert "Credential testing results" in result
 
+    def test_execute_credential_test_with_hydra_tool(self, project_dir: Path, monkeypatch):
+        """Hydra backend should be selected when tool=hydra is provided."""
+
+        async def mock_hydra(_target, _credentials, _app_hint):
+            return CredTestResult(
+                form_found=True,
+                form_action="https://example.com/login",
+                credentials_tested=1,
+                valid_credentials=[("admin", "admin")],
+                details=["Hydra exit code: 0"],
+            )
+
+        monkeypatch.setattr(
+            "clawpwn.modules.credtest.test_credentials_with_hydra",
+            mock_hydra,
+        )
+
+        result = execute_credential_test(
+            {
+                "target": "https://example.com/login",
+                "tool": "hydra",
+                "credentials": [["admin", "admin"]],
+            },
+            project_dir,
+        )
+
+        assert "Tool: hydra" in result
+        assert "VALID CREDENTIALS FOUND" in result
+        assert "admin:admin" in result
+
+    def test_execute_credential_test_rejects_invalid_tool(self, project_dir: Path):
+        """Credential test should reject unknown backend selectors."""
+        result = execute_credential_test(
+            {"target": "https://example.com/login", "tool": "unknown"},
+            project_dir,
+        )
+
+        assert "Error" in result
+        assert "tool must be one of" in result
+
     def test_execute_run_custom_script_success(self, project_dir: Path):
         """Test custom script executor with successful script."""
         script = 'print("Hello from script")'
@@ -169,3 +210,14 @@ sys.exit(1)
 
         assert "Failing script" in result
         assert "exit" in result.lower()
+
+    def test_execute_run_custom_script_adds_validation_note(self, project_dir: Path):
+        """Heuristic exploit output should include a confidence warning."""
+        script = 'print("HTTP 302 redirect observed - potential bypass")'
+
+        result = execute_run_custom_script(
+            {"script": script, "description": "Heuristic SQLi check", "timeout": 5},
+            project_dir,
+        )
+
+        assert "Validation note:" in result

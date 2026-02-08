@@ -5,6 +5,7 @@ from .feroxbuster import FeroxbusterWebScannerPlugin
 from .ffuf import FFUFWebScannerPlugin
 from .nikto import NiktoWebScannerPlugin
 from .nuclei import NucleiWebScannerPlugin
+from .searchsploit import SearchsploitWebScannerPlugin
 from .sqlmap import SqlmapWebScannerPlugin
 from .testssl import TestSSLWebScannerPlugin
 from .wpscan import WPScanWebScannerPlugin
@@ -16,6 +17,7 @@ __all__ = [
     "FeroxbusterWebScannerPlugin",
     "NiktoWebScannerPlugin",
     "NucleiWebScannerPlugin",
+    "SearchsploitWebScannerPlugin",
     "SqlmapWebScannerPlugin",
     "TestSSLWebScannerPlugin",
     "WPScanWebScannerPlugin",

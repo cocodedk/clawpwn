@@ -33,6 +33,7 @@ class TestToolSchemas:
         assert CREDENTIAL_TEST_TOOL["name"] == "credential_test"
         assert "description" in CREDENTIAL_TEST_TOOL
         assert "target" in CREDENTIAL_TEST_TOOL["input_schema"]["properties"]
+        assert "tool" in CREDENTIAL_TEST_TOOL["input_schema"]["properties"]
         assert "credentials" in CREDENTIAL_TEST_TOOL["input_schema"]["properties"]
         assert "app_hint" in CREDENTIAL_TEST_TOOL["input_schema"]["properties"]
         assert "target" in CREDENTIAL_TEST_TOOL["input_schema"]["required"]
@@ -112,10 +113,10 @@ class TestPromptConstants:
     """Test updated prompt constants."""
 
     def test_max_tool_rounds_increased(self):
-        """Test that MAX_TOOL_ROUNDS was increased."""
+        """Test that MAX_TOOL_ROUNDS supports exhaustive scanning."""
         from clawpwn.ai.nli.agent.prompt import MAX_TOOL_ROUNDS
 
-        assert MAX_TOOL_ROUNDS == 8
+        assert MAX_TOOL_ROUNDS == 16
 
     def test_analysis_max_tokens_increased(self):
         """Test that ANALYSIS_MAX_TOKENS was increased."""
@@ -128,6 +129,7 @@ class TestPromptConstants:
         from clawpwn.ai.nli.agent.prompt import SYSTEM_PROMPT_TEMPLATE
 
         assert "PENTEST METHODOLOGY" in SYSTEM_PROMPT_TEMPLATE
+        assert "VALIDATION GUARDRAILS" in SYSTEM_PROMPT_TEMPLATE
         assert "FINGERPRINT" in SYSTEM_PROMPT_TEMPLATE
         assert "RESEARCH" in SYSTEM_PROMPT_TEMPLATE
         assert "fingerprint_target" in SYSTEM_PROMPT_TEMPLATE

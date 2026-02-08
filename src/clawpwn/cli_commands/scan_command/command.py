@@ -41,7 +41,10 @@ def scan(
     web_tools: str = typer.Option(
         "builtin",
         "--web-tools",
-        help="Web scanners: builtin,nuclei,feroxbuster,ffuf,nikto,zap or all (comma-separated)",
+        help=(
+            "Web scanners: builtin,nuclei,feroxbuster,ffuf,nikto,searchsploit,zap "
+            "or all (comma-separated)"
+        ),
     ),
     web_timeout: float = typer.Option(
         45.0,

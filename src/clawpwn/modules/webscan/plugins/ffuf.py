@@ -65,7 +65,7 @@ class FFUFWebScannerPlugin(WebScannerPlugin):
             ]
             await self._runner(
                 command,
-                timeout=max(30.0, config.timeout + 15.0),
+                timeout=None if config.timeout is None else max(30.0, config.timeout + 15.0),
                 verbose=config.verbose,
             )
             return self._parse_output(out_path, target, depth=config.depth)

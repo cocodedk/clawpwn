@@ -36,12 +36,12 @@ class NiktoWebScannerPlugin(WebScannerPlugin):
             "-ask",
             "no",
             "-nointeractive",
-            "-maxtime",
-            str(max(30, int(config.timeout))),
         ]
+        if config.timeout is not None:
+            command.extend(["-maxtime", str(max(30, int(config.timeout)))])
         result = await self._runner(
             command,
-            timeout=max(60.0, config.timeout + 30.0),
+            timeout=None if config.timeout is None else max(60.0, config.timeout + 30.0),
             allowed_exit_codes=(0, 1),
             verbose=config.verbose,
         )

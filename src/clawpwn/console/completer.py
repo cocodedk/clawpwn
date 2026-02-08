@@ -79,7 +79,16 @@ class CommandCompleter(Completer):
 
     DEPTH_VALUES = ["quick", "normal", "deep"]
     SCANNER_VALUES = ["rustscan", "masscan", "nmap"]
-    WEB_TOOL_VALUES = ["builtin", "nuclei", "feroxbuster", "ffuf", "nikto", "zap", "all"]
+    WEB_TOOL_VALUES = [
+        "builtin",
+        "nuclei",
+        "feroxbuster",
+        "ffuf",
+        "nikto",
+        "searchsploit",
+        "zap",
+        "all",
+    ]
     FORMAT_VALUES = ["html", "pdf", "json", "md"]
     LEVEL_VALUES = ["DEBUG", "INFO", "WARNING", "ERROR"]
     CONFIG_ACTIONS = ["show", "edit", "init"]

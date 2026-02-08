@@ -129,6 +129,29 @@ class TestToolExecutors:
         result = dispatch_tool("show_help", {"topic": "nonexistent"}, project_dir)
         assert "Unknown topic" in result
 
+    def test_execute_list_recent_artifacts_scripts(
+        self, project_dir: Path, mock_env_vars: None
+    ) -> None:
+        script_path = project_dir / "exploits" / "custom_script_20260208_083343.py"
+        script_path.write_text('print("ok")', encoding="utf-8")
+
+        result = dispatch_tool(
+            "list_recent_artifacts", {"kind": "scripts", "limit": 3}, project_dir
+        )
+        assert "Recent artifacts" in result
+        assert "custom_script_20260208_083343.py" in result
+
+    def test_check_status_includes_latest_script_artifact(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        session_manager.create_project(str(project_dir))
+        script_path = project_dir / "exploits" / "custom_script_20260208_083343.py"
+        script_path.write_text('print("ok")', encoding="utf-8")
+
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Latest script artifact:" in result
+        assert str(script_path) in result
+
 
 # ---------------------------------------------------------------------------
 # Availability helpers
@@ -198,24 +221,24 @@ class TestToolUseAgent:
         assert "Hello!" in result["response"]
 
     def test_single_tool_call_fast_path(self, project_dir: Path, mock_env_vars: None) -> None:
-        """Simple fast-path tool (check_status) skips analysis round-trip."""
+        """Simple fast-path tool (show_help) skips analysis round-trip."""
         agent = self._make_agent(project_dir)
 
         agent.llm.chat_with_tools = Mock(
             return_value=_make_response(
-                [_make_tool_use_block("check_status", {})],
+                [_make_tool_use_block("show_help", {"topic": "scan"})],
                 stop_reason="tool_use",
             )
         )
 
         with patch(
             "clawpwn.ai.nli.agent.executor.dispatch_tool",
-            return_value="Target: example.com",
+            return_value="Help: use clawpwn scan to scan targets",
         ):
-            result = agent.run("what is the status")
+            result = agent.run("help with scanning")
 
         assert result["success"] is True
-        assert "example.com" in result["response"]
+        assert "scan" in result["response"]
         # Should NOT have been called a second time (fast path)
         assert agent.llm.chat_with_tools.call_count == 1
 
@@ -244,6 +267,33 @@ class TestToolUseAgent:
         assert result["success"] is True
         assert "2 SQL injection" in result["response"]
         assert agent.llm.chat_with_tools.call_count == 2
+
+    def test_tool_call_executes_when_stop_reason_is_max_tokens(
+        self, project_dir: Path, mock_env_vars: None
+    ) -> None:
+        """Tool calls must execute even if provider reports stop_reason=max_tokens."""
+        agent = self._make_agent(project_dir)
+
+        first = _make_response(
+            [
+                _make_text_block("Running scan..."),
+                _make_tool_use_block("web_scan", {"target": "http://target/phpmyadmin"}),
+            ],
+            stop_reason="max_tokens",
+        )
+        second = _make_response([_make_text_block("Scan complete after tool execution.")])
+        agent.llm.chat_with_tools = Mock(side_effect=[first, second])
+
+        with patch(
+            "clawpwn.ai.nli.agent.executor.dispatch_tool",
+            return_value="Total findings: 1 (1 high).",
+        ) as mock_dispatch:
+            result = agent.run("scan target")
+
+        assert result["success"] is True
+        assert "Scan complete after tool execution." in result["response"]
+        assert agent.llm.chat_with_tools.call_count == 2
+        mock_dispatch.assert_called_once()
 
     def test_suggest_tools_captured(self, project_dir: Path, mock_env_vars: None) -> None:
         """suggest_tools tool call populates the suggestions field."""

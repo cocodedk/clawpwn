@@ -13,20 +13,27 @@ def execute_credential_test(params: dict[str, Any], _project_dir: Path) -> str:
     target = params.get("target", "")
     credentials = params.get("credentials")
     app_hint = params.get("app_hint")
+    selected_tool = str(params.get("tool", "builtin")).strip().lower()
 
     if not target:
         return "Error: target parameter is required."
+    if selected_tool not in {"builtin", "hydra"}:
+        return "Error: tool must be one of: builtin, hydra."
 
     # Convert credentials format if provided
     creds_list = None
     if credentials:
         creds_list = [(cred[0], cred[1]) for cred in credentials if len(cred) == 2]
 
-    from clawpwn.modules.credtest import test_credentials
+    from clawpwn.modules.credtest import test_credentials, test_credentials_with_hydra
 
-    result = safe_async_run(test_credentials(target, creds_list, app_hint))
+    if selected_tool == "hydra":
+        result = safe_async_run(test_credentials_with_hydra(target, creds_list, app_hint))
+    else:
+        result = safe_async_run(test_credentials(target, creds_list, app_hint))
 
     output = [f"Credential testing results for {target}:\n"]
+    output.append(f"Tool: {selected_tool}")
 
     if not result.form_found:
         output.append("No login form found on the target page.")
@@ -47,10 +54,37 @@ def execute_credential_test(params: dict[str, Any], _project_dir: Path) -> str:
         for detail in result.details:
             output.append(f"  {detail}")
 
+    if result.hints:
+        output.append("\nResponse hints:")
+        for hint in result.hints:
+            output.append(f"  • {hint}")
+
+    if result.block_signals:
+        output.append("\nBlocking signals:")
+        for signal in result.block_signals:
+            output.append(f"  • {signal}")
+
+    if result.policy_action != "continue":
+        output.append(f"\nPolicy action: {result.policy_action}")
+    if result.stopped_early:
+        output.append("Stopped early due to target defense signals.")
+
     if result.error:
         output.append(f"\nError: {result.error}")
 
     return "\n".join(output)
+
+
+def _build_validation_note(stdout: str, stderr: str) -> str:
+    """Return confidence guidance for potentially ambiguous exploit output."""
+    text = f"{stdout}\n{stderr}".lower()
+    markers = ("302", "redirect", "bypass", "sql injection", "sqli", "potential")
+    if any(marker in text for marker in markers):
+        return (
+            "Heuristic indicators are not proof of exploitation by themselves. "
+            "Confirm with post-auth behavior or extracted data before marking as confirmed."
+        )
+    return ""
 
 
 def execute_run_custom_script(params: dict[str, Any], project_dir: Path) -> str:
@@ -83,5 +117,9 @@ def execute_run_custom_script(params: dict[str, Any], project_dir: Path) -> str:
 
     if result.error:
         output.append(f"\nError: {result.error}")
+
+    validation_note = _build_validation_note(result.stdout, result.stderr)
+    if validation_note:
+        output.append(f"\nValidation note: {validation_note}")
 
     return "\n".join(output)

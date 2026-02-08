@@ -2,6 +2,11 @@
 
 from urllib.parse import parse_qs, urlparse
 
+from clawpwn.modules.attack_feedback import (
+    decide_attack_policy,
+    extract_attack_signals,
+    summarize_signals,
+)
 from clawpwn.tools.http import HTTPClient
 
 from .models import ScanResult
@@ -24,6 +29,10 @@ async def test_sql_injection(client: HTTPClient, target: str, depth: str) -> lis
     if not parsed.query:
         return []
 
+    observed_hints: list[str] = []
+    observed_blocks: list[str] = []
+    block_streak = 0
+
     params = parse_qs(parsed.query)
     for param_name in params:
         for payload in payloads[:4] if depth == "quick" else payloads:
@@ -34,6 +43,46 @@ async def test_sql_injection(client: HTTPClient, target: str, depth: str) -> lis
             except Exception:
                 continue
 
+            signals = extract_attack_signals(
+                response.body,
+                status_code=response.status_code,
+                headers=response.headers,
+            )
+            hint_messages = summarize_signals(signals, "hint", limit=2)
+            for message in hint_messages:
+                if message not in observed_hints:
+                    observed_hints.append(message)
+
+            block_messages = summarize_signals(signals, "block", limit=2)
+            if block_messages:
+                block_streak += 1
+                for message in block_messages:
+                    if message not in observed_blocks:
+                        observed_blocks.append(message)
+            else:
+                block_streak = 0
+
+            policy = decide_attack_policy(signals, block_streak=block_streak)
+            if policy.action == "stop_and_replan":
+                evidence = "; ".join(observed_blocks[:3]) or policy.reason
+                return [
+                    ScanResult(
+                        title="SQL Injection Testing Blocked by Defensive Responses",
+                        severity="info",
+                        description=(
+                            "Target returned repeated defensive signals while testing SQLi payloads. "
+                            "Stop direct spraying and re-plan approach."
+                        ),
+                        url=target,
+                        attack_type="Attack Feedback",
+                        evidence=evidence,
+                        remediation=(
+                            "Apply backoff, reduce request rate, and switch to a narrower/manual vector."
+                        ),
+                        confidence="high",
+                    )
+                ]
+
             for error in [
                 "SQL syntax",
                 "mysql_fetch",
@@ -43,6 +92,9 @@ async def test_sql_injection(client: HTTPClient, target: str, depth: str) -> lis
                 "SQLite",
             ]:
                 if error.lower() in response.body.lower():
+                    evidence = f"Payload: {payload}\nError: {error}"
+                    if observed_hints:
+                        evidence += f"\nHints: {'; '.join(observed_hints[:2])}"
                     return [
                         ScanResult(
                             title="SQL Injection (Error-Based)",
@@ -52,11 +104,34 @@ async def test_sql_injection(client: HTTPClient, target: str, depth: str) -> lis
                             ),
                             url=target,
                             attack_type="SQL Injection",
-                            evidence=f"Payload: {payload}\nError: {error}",
+                            evidence=evidence,
                             remediation="Use parameterized queries and input validation.",
                             confidence="high",
                         )
                     ]
+
+    if observed_hints or observed_blocks:
+        feedback = observed_blocks if observed_blocks else observed_hints
+        title = (
+            "SQL Injection Testing Encountered Defensive Signals"
+            if observed_blocks
+            else "SQL Injection Response Hints Observed"
+        )
+        return [
+            ScanResult(
+                title=title,
+                severity="info",
+                description=(
+                    "Attack-response feedback was observed during SQLi testing. "
+                    "Use these signals to refine payloads and strategy."
+                ),
+                url=target,
+                attack_type="Attack Feedback",
+                evidence="; ".join(feedback[:3]),
+                remediation="Adjust parameters, form fields, and request pacing before retrying.",
+                confidence="medium",
+            )
+        ]
 
     return []
 

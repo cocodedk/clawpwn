@@ -29,7 +29,7 @@ class ZAPWebScannerPlugin(WebScannerPlugin):
             command = self._build_command(target=target, out_file=out_file, depth=config.depth)
             result = await self._runner(
                 command,
-                timeout=max(90.0, config.timeout + 60.0),
+                timeout=None if config.timeout is None else max(90.0, config.timeout + 60.0),
                 allowed_exit_codes=(0, 1, 2),
                 verbose=config.verbose,
             )

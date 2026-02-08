@@ -31,7 +31,7 @@ Examples:
   scan --depth deep         Full scan (slower)
   scan --scanner nmap       Use a different scanner
   scan --udp-full           Full UDP range (slow)
-  scan --web-tools all      Run builtin+nuclei+feroxbuster+ffuf+nikto+zap
+  scan --web-tools all      Run builtin+nuclei+feroxbuster+ffuf+nikto+searchsploit+zap
   scan --web-timeout 90     Increase timeout for slower web tools
   scan --web-concurrency 20 Increase web worker threads
   scan --auto               AI-guided scan

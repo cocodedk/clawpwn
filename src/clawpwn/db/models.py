@@ -41,6 +41,7 @@ class Project(Base):
     messages = relationship(
         "ConversationMessage", back_populates="project", cascade="all, delete-orphan"
     )
+    plan_steps = relationship("PlanStep", back_populates="project", cascade="all, delete-orphan")
 
 
 class Finding(Base):
@@ -113,6 +114,25 @@ class ConversationMessage(Base):
     created_at = Column(DateTime(timezone=True), default=_utc_now)
 
     project = relationship("Project", back_populates="messages")
+
+
+class PlanStep(Base):
+    """A single step in a persisted attack plan."""
+
+    __tablename__ = "plan_steps"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+
+    step_number = Column(Integer, nullable=False)
+    tool = Column(String, default="")  # tool name for speed-tier lookup
+    description = Column(Text, nullable=False)
+    status = Column(String, default="pending")  # pending, in_progress, done, skipped
+    result_summary = Column(Text, default="")
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
+
+    project = relationship("Project", back_populates="plan_steps")
 
 
 class ProjectState:

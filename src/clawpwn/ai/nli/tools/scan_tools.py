@@ -15,7 +15,8 @@ WEB_SCAN_TOOL: dict[str, Any] = {
         "For deep SQL injection testing, prefer sqlmap over builtin. "
         "Always prefer depth=deep for targeted scans. "
         "The 'builtin' tool is always available. External tools (nuclei, nikto, zap, "
-        "feroxbuster, ffuf, sqlmap, wpscan, testssl) may or may not be installed — "
+        "feroxbuster, ffuf, searchsploit, sqlmap, wpscan, testssl) may or may not be "
+        "installed — "
         "check the system prompt context."
     ),
     "input_schema": {
@@ -63,6 +64,7 @@ WEB_SCAN_TOOL: dict[str, Any] = {
                         "feroxbuster",
                         "ffuf",
                         "nikto",
+                        "searchsploit",
                         "zap",
                         "sqlmap",
                         "wpscan",
@@ -76,7 +78,7 @@ WEB_SCAN_TOOL: dict[str, Any] = {
             },
             "timeout": {
                 "type": "number",
-                "description": "Per-tool timeout in seconds. Default 45.",
+                "description": "Per-tool timeout in seconds. No default — tools run to completion unless specified.",
             },
             "concurrency": {
                 "type": "integer",

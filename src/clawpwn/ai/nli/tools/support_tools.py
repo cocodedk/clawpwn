@@ -87,10 +87,11 @@ SUGGEST_TOOLS_TOOL: dict[str, Any] = {
     "description": (
         "Recommend external security tools that would be valuable for the current "
         "target or task, including tools ClawPwn does not have built-in plugins for. "
-        "Use your knowledge of the security tooling ecosystem. Examples: hydra for "
-        "brute-force, gobuster for directories, jwt_tool for JWT attacks, responder "
-        "for LLMNR/NBT-NS poisoning, impacket for Windows protocols, etc. "
-        "Note: sqlmap, wpscan, and testssl are now built-in plugins — use web_scan "
+        "Use your knowledge of the security tooling ecosystem. Examples: gobuster for "
+        "directories, jwt_tool for JWT attacks, responder for LLMNR/NBT-NS poisoning, "
+        "impacket for Windows protocols, etc. "
+        "Note: credential_test can run with tool=hydra when hydra is installed. "
+        "Also, sqlmap, wpscan, and testssl are built-in plugins — use web_scan "
         "with the appropriate tool name instead of suggesting them. "
         "Always include install commands and practical usage examples for the "
         "current target."
@@ -128,5 +129,27 @@ SUGGEST_TOOLS_TOOL: dict[str, Any] = {
             },
         },
         "required": ["suggestions"],
+    },
+}
+
+LIST_RECENT_ARTIFACTS_TOOL: dict[str, Any] = {
+    "name": "list_recent_artifacts",
+    "description": (
+        "List recently created project artifacts such as custom scripts, evidence files, "
+        "and generated reports. Use when the user asks where a script/file was saved."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "kind": {
+                "type": "string",
+                "enum": ["all", "scripts", "evidence", "reports"],
+                "description": "Optional artifact category filter. Default: all.",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum items to return. Default: 5.",
+            },
+        },
     },
 }

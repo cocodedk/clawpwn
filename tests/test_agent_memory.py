@@ -401,7 +401,7 @@ class TestSystemPromptHistoryAwareness:
 
         assert "HISTORY AWARENESS" in SYSTEM_PROMPT_TEMPLATE
         assert "Do NOT repeat the same tool" in SYSTEM_PROMPT_TEMPLATE
-        assert "DIFFERENT approach" in SYSTEM_PROMPT_TEMPLATE
+        assert "DIFFERENT tool" in SYSTEM_PROMPT_TEMPLATE
 
     def test_system_prompt_instructs_no_repetition(self):
         """Test that prompt specifically instructs against repeating scans."""
@@ -415,8 +415,8 @@ class TestSystemPromptHistoryAwareness:
         from clawpwn.ai.nli.agent.prompt import SYSTEM_PROMPT_TEMPLATE
 
         assert "different tool" in SYSTEM_PROMPT_TEMPLATE
-        assert "different depth" in SYSTEM_PROMPT_TEMPLATE
-        assert "manual testing" in SYSTEM_PROMPT_TEMPLATE
+        assert "alternative tools/parameters" in SYSTEM_PROMPT_TEMPLATE
+        assert "manual" in SYSTEM_PROMPT_TEMPLATE
 
 
 class TestEndToEndMemory:

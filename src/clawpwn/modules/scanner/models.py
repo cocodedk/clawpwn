@@ -25,5 +25,5 @@ class ScanConfig:
     scan_types: list[str] = field(default_factory=lambda: ["all"])
     depth: str = "normal"
     threads: int = 10
-    timeout: float = 30.0
+    timeout: float | None = None
     follow_redirects: bool = True

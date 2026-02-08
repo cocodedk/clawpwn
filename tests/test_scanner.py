@@ -293,7 +293,7 @@ class TestScanConfig:
         assert config.scan_types == ["all"]
         assert config.depth == "normal"
         assert config.threads == 10
-        assert config.timeout == 30.0
+        assert config.timeout is None
         assert config.follow_redirects is True
 
     def test_scan_config_custom_values(self):
