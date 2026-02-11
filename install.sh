@@ -46,18 +46,18 @@ generate_secret() {
 
 # Ensure uv is installed
 if ! command -v uv >/dev/null 2>&1; then
-  echo "[1/7] Installing uv..."
+  echo "[1/8] Installing uv..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
 else
-  echo "[1/7] uv already installed"
+  echo "[1/8] uv already installed"
 fi
 
 # Ensure Rust/cargo is installed
 if ! command -v cargo >/dev/null 2>&1; then
-  echo "[2/7] Installing Rust (cargo)..."
+  echo "[2/8] Installing Rust (cargo)..."
   curl -LsSf https://sh.rustup.rs | sh -s -- -y -q --default-toolchain stable
 else
-  echo "[2/7] Rust already installed"
+  echo "[2/8] Rust already installed"
 fi
 
 # Ensure PATH includes cargo, local bin, and go bin
@@ -66,11 +66,11 @@ export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/go/bin:$PATH"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
 # Install ClawPwn
-echo "[3/7] Installing ClawPwn..."
+echo "[3/8] Installing ClawPwn..."
 uv tool install . --force --reinstall --refresh
 
 # Install scanners
-echo "[4/7] Installing scanners (nmap, masscan, rustscan)..."
+echo "[4/8] Installing scanners (nmap, masscan, rustscan)..."
 
 # nmap, masscan, and build tools via package manager
 if command -v apt-get >/dev/null 2>&1; then
@@ -97,11 +97,11 @@ for bin in nmap masscan rustscan; do
   elif command -v "$bin" >/dev/null 2>&1; then
     echo "  $bin: $(command -v "$bin")"
   else
-    echo "  $bin: NOT FOUND (optional)"
+    echo "  $bin: NOT FOUND"
   fi
 done
 
-echo "[5/7] Installing web scanners (nuclei, feroxbuster, ffuf, hydra, nikto, searchsploit, sqlmap, testssl, wpscan, zap)..."
+echo "[5/8] Installing web scanners (nuclei, feroxbuster, ffuf, hydra, nikto, searchsploit, sqlmap, testssl, wpscan, zap)..."
 
 # Install web scanner packages via package manager.
 # Each package is installed individually so one missing package doesn't block
@@ -128,8 +128,22 @@ done
 # exploitdb has different names across distros
 _pkg_install exploitdb || _pkg_install exploit-database || true
 
-# wpscan via gem (Ruby-based)
+# wpscan via gem (Ruby-based) — install Ruby first if missing
 if ! command -v wpscan >/dev/null 2>&1; then
+  if ! command -v gem >/dev/null 2>&1; then
+    echo "  Installing Ruby for wpscan..."
+    if command -v apt-get >/dev/null 2>&1; then
+      sudo apt-get install -y ruby ruby-dev build-essential zlib1g-dev >/dev/null 2>&1
+    elif command -v dnf >/dev/null 2>&1; then
+      sudo dnf install -y ruby ruby-devel gcc make >/dev/null 2>&1
+    elif command -v yum >/dev/null 2>&1; then
+      sudo yum install -y ruby ruby-devel gcc make >/dev/null 2>&1
+    elif command -v pacman >/dev/null 2>&1; then
+      sudo pacman -S --noconfirm ruby base-devel >/dev/null 2>&1
+    elif command -v brew >/dev/null 2>&1; then
+      brew install ruby >/dev/null 2>&1
+    fi
+  fi
   if command -v gem >/dev/null 2>&1; then
     echo "  Installing wpscan via gem..."
     sudo gem install wpscan --no-document >/dev/null 2>&1 || true
@@ -139,10 +153,12 @@ fi
 # testssl.sh fallback via git if package not available
 if ! command -v testssl.sh >/dev/null 2>&1 && ! command -v testssl >/dev/null 2>&1; then
   echo "  Installing testssl.sh via git..."
-  if [ ! -d "$HOME/.local/share/testssl.sh" ]; then
-    git clone --depth 1 https://github.com/drwetter/testssl.sh.git "$HOME/.local/share/testssl.sh" >/dev/null 2>&1 || true
+  if [ ! -d "$HOME/.local/share/testssl.sh/.git" ]; then
+    rm -rf "$HOME/.local/share/testssl.sh" 2>/dev/null || true
+    git clone --depth 1 https://github.com/drwetter/testssl.sh.git "$HOME/.local/share/testssl.sh" 2>&1 || true
   fi
   if [ -f "$HOME/.local/share/testssl.sh/testssl.sh" ]; then
+    chmod +x "$HOME/.local/share/testssl.sh/testssl.sh"
     ln -sf "$HOME/.local/share/testssl.sh/testssl.sh" "$HOME/.local/bin/testssl.sh" 2>/dev/null || true
   fi
 fi
@@ -212,21 +228,43 @@ fi
 if ! command -v searchsploit >/dev/null 2>&1; then
   echo "  Installing searchsploit via git..."
   if [ ! -d "$HOME/.local/share/exploitdb/.git" ]; then
-    git clone --depth 1 https://github.com/offensive-security/exploitdb.git "$HOME/.local/share/exploitdb" >/dev/null 2>&1 || true
+    rm -rf "$HOME/.local/share/exploitdb" 2>/dev/null || true
+    git clone --depth 1 https://gitlab.com/exploit-database/exploitdb.git "$HOME/.local/share/exploitdb" 2>&1 \
+      || git clone --depth 1 https://github.com/offensive-security/exploitdb.git "$HOME/.local/share/exploitdb" 2>&1 \
+      || true
   fi
-  if [ -x "$HOME/.local/share/exploitdb/searchsploit" ]; then
+  if [ -f "$HOME/.local/share/exploitdb/searchsploit" ]; then
+    chmod +x "$HOME/.local/share/exploitdb/searchsploit"
     ln -sf "$HOME/.local/share/exploitdb/searchsploit" "$HOME/.local/bin/searchsploit" 2>/dev/null || true
+    # Configure searchsploit rc file if not present
+    if [ ! -f "$HOME/.searchsploit_rc" ]; then
+      sed "s|/opt/exploitdb|$HOME/.local/share/exploitdb|g" \
+        "$HOME/.local/share/exploitdb/.searchsploit_rc" > "$HOME/.searchsploit_rc" 2>/dev/null || true
+    fi
   fi
 fi
 
-# Verify web scanners
-for bin in nuclei feroxbuster ffuf hydra nikto searchsploit sqlmap wpscan testssl.sh docker; do
+# Verify web scanners — required tools error loudly, truly optional ones don't
+_web_scanner_missing=()
+for bin in nuclei feroxbuster ffuf hydra nikto searchsploit sqlmap testssl.sh wpscan; do
   if command -v "$bin" >/dev/null 2>&1; then
     echo "  $bin: $(command -v "$bin")"
   else
-    echo "  $bin: NOT FOUND (optional)"
+    echo "  $bin: NOT FOUND"
+    _web_scanner_missing+=("$bin")
   fi
 done
+# docker is checked separately — truly optional for web scanning
+if command -v docker >/dev/null 2>&1; then
+  echo "  docker: $(command -v docker)"
+else
+  echo "  docker: NOT FOUND (optional — only needed for ZAP)"
+fi
+if [ "${#_web_scanner_missing[@]}" -gt 0 ]; then
+  echo ""
+  echo "  WARNING: ${#_web_scanner_missing[@]} scanner(s) failed to install: ${_web_scanner_missing[*]}"
+  echo "  Some scan capabilities will be unavailable. Re-run install.sh or install manually."
+fi
 
 echo "  Ensuring credential wordlist availability..."
 
@@ -342,7 +380,7 @@ set_or_append_env_key "$REPO_ROOT/.env" "CLAWPWN_CRED_WORDLIST" "$cred_wordlist"
 echo "  credential wordlist: $cred_wordlist"
 
 # Set up passwordless sudo for scanners (Linux only)
-echo "[6/7] Setting up scanner permissions..."
+echo "[6/8] Setting up scanner permissions..."
 if [ "$(uname)" = "Linux" ]; then
   # Get scanner paths
   nmap_path="$(command -v nmap 2>/dev/null || true)"
@@ -390,7 +428,7 @@ else
   echo "  Skipped (not Linux)"
 fi
 
-echo "[7/7] Setting up centralized experience DB (Postgres + Docker Compose)..."
+echo "[7/8] Setting up centralized experience DB (Postgres + Docker Compose)..."
 
 # Ensure Docker is installed
 if ! command -v docker >/dev/null 2>&1; then
@@ -540,6 +578,94 @@ echo "  experience-db: healthy"
 echo "  persistent volume: clawpwn_pgdata"
 echo "  connection URL written to .env and .env.experience"
 echo "  experience seeds installed: $seed_count"
+
+echo "[8/8] Starting Metasploitable2 lab target..."
+
+# Start msf2 via compose (idempotent — won't recreate if already running)
+compose_run up -d msf2 >/dev/null 2>&1
+
+msf2_id="$(compose_run ps -q msf2)"
+if [ -z "$msf2_id" ]; then
+  echo "  Warning: msf2 container not found. Skipping Metasploitable2 setup."
+else
+  # Wait for core services (SSH as indicator)
+  echo "  Waiting for services to initialize..."
+  msf2_wait=0
+  msf2_max_wait=60
+  while [ "$msf2_wait" -lt "$msf2_max_wait" ]; do
+    if "${DOCKER_PREFIX[@]}" docker exec msf2 nc -z 127.0.0.1 22 2>/dev/null; then
+      break
+    fi
+    msf2_wait=$((msf2_wait + 2))
+    sleep 2
+  done
+
+  if [ "$msf2_wait" -ge "$msf2_max_wait" ]; then
+    echo "  Warning: Metasploitable2 services did not initialize in ${msf2_max_wait}s."
+  else
+    echo "  Core services ready (${msf2_wait}s)."
+  fi
+
+  # Settle time for Java/Tomcat
+  sleep 5
+
+  # Check ports and restart down services
+  msf2_ports=(21 22 23 25 80 111 139 445 512 513 514 1099 1524 2121 3306 3632 5432 5900 6000 6667 6697 8009 8180 8787)
+
+  msf2_port_to_service() {
+    case "$1" in
+      21|23|512|513|514|1524) echo "xinetd" ;;
+      22) echo "ssh" ;;
+      25) echo "postfix" ;;
+      80) echo "apache2" ;;
+      111) echo "portmap" ;;
+      139|445) echo "samba" ;;
+      2121) echo "proftpd" ;;
+      3306) echo "mysql" ;;
+      3632) echo "distcc" ;;
+      5432) echo "postgresql-8.3" ;;
+      8009|8180) echo "tomcat5.5" ;;
+      *) echo "" ;;
+    esac
+  }
+
+  msf2_down_ports=()
+  for p in "${msf2_ports[@]}"; do
+    if ! "${DOCKER_PREFIX[@]}" docker exec msf2 nc -z 127.0.0.1 "$p" 2>/dev/null; then
+      msf2_down_ports+=("$p")
+    fi
+  done
+
+  if [ "${#msf2_down_ports[@]}" -gt 0 ]; then
+    echo "  Restarting services for ${#msf2_down_ports[@]} closed port(s)..."
+    msf2_restarted=()
+    for p in "${msf2_down_ports[@]}"; do
+      svc="$(msf2_port_to_service "$p")"
+      if [ -n "$svc" ]; then
+        skip=false
+        for s in "${msf2_restarted[@]+"${msf2_restarted[@]}"}"; do
+          [ "$s" = "$svc" ] && skip=true
+        done
+        if ! $skip; then
+          "${DOCKER_PREFIX[@]}" docker exec msf2 service "$svc" restart >/dev/null 2>&1 || true
+          msf2_restarted+=("$svc")
+        fi
+      fi
+    done
+    sleep 5
+  fi
+
+  # Final count
+  msf2_open=0
+  for p in "${msf2_ports[@]}"; do
+    if "${DOCKER_PREFIX[@]}" docker exec msf2 nc -z 127.0.0.1 "$p" 2>/dev/null; then
+      msf2_open=$((msf2_open + 1))
+    fi
+  done
+
+  echo "  msf2: ${msf2_open}/${#msf2_ports[@]} services listening"
+  echo "  container: msf2 (manual start only — use ./install.sh or ./start-lab.sh)"
+fi
 
 # Add PATH to shell profile if not already there
 add_to_path() {

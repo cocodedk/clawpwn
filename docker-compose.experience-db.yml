@@ -2,7 +2,7 @@ services:
   experience-db:
     image: pgvector/pgvector:pg16
     container_name: clawpwn-experience-db
-    restart: unless-stopped
+    restart: "no"
     environment:
       POSTGRES_DB: ${EXPERIENCE_DB_NAME:-clawpwn_experience}
       POSTGRES_USER: ${EXPERIENCE_DB_USER:-clawpwn}
@@ -20,6 +20,38 @@ services:
       - clawpwn_pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
       - ./backups:/backups
+
+  msf2:
+    image: tleemcjr/metasploitable2
+    container_name: msf2
+    restart: "no"
+    tty: true
+    stdin_open: true
+    ports:
+      - "21:21"
+      - "22:22"
+      - "23:23"
+      - "25:25"
+      - "80:80"
+      - "111:111"
+      - "139:139"
+      - "445:445"
+      - "512:512"
+      - "513:513"
+      - "514:514"
+      - "1099:1099"
+      - "1524:1524"
+      - "2121:2121"
+      - "3306:3306"
+      - "3632:3632"
+      - "5432:5432"
+      - "5900:5900"
+      - "6000:6000"
+      - "6667:6667"
+      - "6697:6697"
+      - "8009:8009"
+      - "8180:8180"
+      - "8787:8787"
 
 volumes:
   clawpwn_pgdata:
