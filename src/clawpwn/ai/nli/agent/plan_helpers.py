@@ -25,10 +25,14 @@ def classify_intent(
         "Classify this user message into exactly ONE category.\n"
         "Respond with ONLY the category name, nothing else.\n\n"
         "Categories:\n"
-        "- plan_execute: user wants scanning, testing, attacking, exploiting, "
-        "or any security assessment action on a target\n"
-        "- conversational: user is asking a question, requesting status, "
-        "asking for help, setting a target, or any non-action request\n\n"
+        "- plan_execute: user wants to EXECUTE a scan, attack, or security "
+        "assessment action against a target right now\n"
+        "- conversational: user is asking a question, wants information, "
+        "wants you to write/show/explain a command, requesting status, "
+        "asking for help, setting a target, or any non-execution request. "
+        "Phrases like 'write the command', 'show me', 'what command', "
+        "'how do I', 'explain' are conversational even if they mention "
+        "tools or testing\n\n"
         f'Message: "{user_message}"'
     )
     try:
@@ -61,6 +65,7 @@ def step_to_dispatch_params(
     """
     app_hint = context.get("app_hint", "")
     vuln_categories = context.get("vuln_categories", [])
+    target_ports = context.get("target_ports", "")
 
     # Split "web_scan:sqlmap" into ("web_scan", "sqlmap")
     if ":" in step_tool:
@@ -84,6 +89,8 @@ def step_to_dispatch_params(
             params["depth"] = "quick"
         else:
             params["depth"] = "deep"
+        if target_ports:
+            params["ports"] = target_ports
         return ("network_scan", params)
 
     if step_tool == "discover_hosts":

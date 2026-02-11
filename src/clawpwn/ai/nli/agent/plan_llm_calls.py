@@ -42,6 +42,11 @@ def generate_plan(
                 "Match the plan exactly to what the user asked for. "
                 "If the user asked for a specific tool or test (e.g. 'run hydra', "
                 "'sqlmap the login'), create a focused plan with ONLY that tool. "
+                "If the user mentions specific ports (e.g. 'port 21', 'ports 80,443'), "
+                "set target_ports on EVERY step and only include tools relevant to "
+                "those ports/services. For non-HTTP ports (21, 22, 25, etc.), do NOT "
+                "include web_scan tools — use network_scan, credential_test, and "
+                "research_vulnerabilities instead. "
                 "Only create a broad multi-tool plan if the user asked for a "
                 "general scan or full assessment."
             ),

@@ -84,6 +84,14 @@ def run_plan_executor(
                 debug=debug,
             )
 
+        # Capture target_ports from LLM output before DB save (not persisted)
+        ports_from_plan = ""
+        for rs in raw_steps:
+            tp = rs.get("target_ports", "")
+            if tp:
+                ports_from_plan = tp
+                break
+
         sorted_steps = _sort_steps_by_speed(raw_steps)
         created = session.save_plan(sorted_steps)
         steps = [
@@ -97,6 +105,8 @@ def run_plan_executor(
 
     # --- Phase 2: Execute tier by tier ---
     context: dict[str, Any] = {"app_hint": "", "techs": [], "vuln_categories": []}
+    if not existing_plan and ports_from_plan:
+        context["target_ports"] = ports_from_plan
     all_results: list[dict[str, Any]] = []
     tiers = group_by_tier(steps)
 

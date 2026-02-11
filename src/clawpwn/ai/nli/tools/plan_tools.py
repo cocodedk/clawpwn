@@ -56,6 +56,14 @@ SAVE_PLAN_TOOL: dict[str, Any] = {
                                 "will use. This determines execution order."
                             ),
                         },
+                        "target_ports": {
+                            "type": "string",
+                            "description": (
+                                "Port(s) to focus on (e.g. '21', '80,443'). "
+                                "Set this when the user asks about specific ports. "
+                                "Omit for broad scans."
+                            ),
+                        },
                     },
                     "required": ["description", "tool"],
                 },
