@@ -664,6 +664,16 @@ else
   done
 
   echo "  msf2: ${msf2_open}/${#msf2_ports[@]} services listening"
+
+  # Detect container IP on the Docker bridge network
+  msf2_ip="$("${DOCKER_PREFIX[@]}" docker inspect msf2 \
+    --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null)"
+  if [ -n "$msf2_ip" ]; then
+    echo "  msf2 IP: $msf2_ip"
+    set_or_append_env_key "$REPO_ROOT/.env" "CLAWPWN_LAB_TARGET" "$msf2_ip"
+  else
+    echo "  WARNING: could not determine msf2 container IP"
+  fi
   echo "  container: msf2 (manual start only — use ./install.sh or ./start-lab.sh)"
 fi
 
