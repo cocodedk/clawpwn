@@ -9,8 +9,37 @@ from typing import Any
 from clawpwn.ai.nli.tool_executors import dispatch_tool
 from clawpwn.ai.nli.tools.tool_metadata import get_profile
 
+from .plan_context import enrich_context, revision_reason
 from .plan_helpers import step_to_dispatch_params
 from .result_builder import format_tool_call
+
+
+def _truncate(text: str, max_len: int) -> str:
+    return text if len(text) <= max_len else text[:max_len] + "..."
+
+
+def _step_result(
+    step: dict,
+    tool_name: str = "",
+    params: dict | None = None,
+    result_text: str = "",
+    *,
+    failed: bool | None = None,
+) -> dict[str, Any]:
+    """Build a standardised step result dict."""
+    if failed is None:
+        failed = result_text.startswith("Tool '") and "failed:" in result_text
+    return {
+        "step_number": step["step_number"],
+        "description": step["description"],
+        "tool": step["tool"],
+        "tool_name": tool_name,
+        "params": params or {},
+        "result_text": result_text,
+        "failed": failed,
+        "result_summary": _truncate(result_text, 200),
+        "status": "done",
+    }
 
 
 def get_session_and_target(project_dir: Path) -> tuple[Any, str]:
@@ -71,26 +100,15 @@ def execute_tier_parallel(
     progress: list[str],
     max_workers: int = 4,
 ) -> list[dict[str, Any]]:
-    """Execute steps in parallel within a tier using ThreadPoolExecutor."""
+    """Execute steps in parallel within a tier."""
     if not steps:
         return []
-
     results: list[dict[str, Any]] = []
 
     def _run_step(step: dict[str, Any]) -> dict[str, Any]:
-        tool_name, params = step_to_dispatch_params(step["tool"], target, context)
-        result_text = dispatch_tool(tool_name, params, project_dir)
-        return {
-            "step_number": step["step_number"],
-            "description": step["description"],
-            "tool": step["tool"],
-            "tool_name": tool_name,
-            "params": params,
-            "result_text": result_text,
-            "failed": result_text.startswith("Tool '") and "failed:" in result_text,
-            "result_summary": _truncate(result_text, 200),
-            "status": "done",
-        }
+        tn, params = step_to_dispatch_params(step["tool"], target, context)
+        rt = dispatch_tool(tn, params, project_dir)
+        return _step_result(step, tn, params, rt)
 
     with ThreadPoolExecutor(max_workers=min(max_workers, len(steps))) as pool:
         futures = {}
@@ -108,15 +126,13 @@ def execute_tier_parallel(
             try:
                 result = future.result()
             except Exception as exc:
-                result = {
-                    "step_number": step_num,
-                    "description": "",
-                    "tool": "",
-                    "result_text": str(exc),
-                    "failed": True,
-                    "result_summary": f"Error: {exc}",
-                    "status": "done",
-                }
+                result = _step_result(
+                    {"step_number": step_num, "description": "", "tool": ""},
+                    "",
+                    {},
+                    str(exc),
+                    failed=True,
+                )
 
             results.append(result)
             session.update_step_status(step_num, "done", result["result_summary"])
@@ -139,61 +155,27 @@ def execute_single_step(
     """Execute a single step sequentially."""
     step_num = step["step_number"]
     tool_name, params = step_to_dispatch_params(step["tool"], target, context)
-    call_str = format_tool_call(tool_name, params)
-    emit(f"  Step {step_num}: {call_str}")
-    progress.append(f"Step {step_num}: {call_str}")
+    emit(f"  Step {step_num}: {format_tool_call(tool_name, params)}")
+    progress.append(f"Step {step_num}: {format_tool_call(tool_name, params)}")
     session.update_step_status(step_num, "in_progress")
-
     try:
-        result_text = dispatch_tool(tool_name, params, project_dir)
-        failed = result_text.startswith("Tool '") and "failed:" in result_text
+        rt = dispatch_tool(tool_name, params, project_dir)
     except Exception as exc:
-        result_text = str(exc)
-        failed = True
-
-    summary = _truncate(result_text, 200)
-    session.update_step_status(step_num, "done", summary)
+        rt = str(exc)
+    result = _step_result(step, tool_name, params, rt)
+    session.update_step_status(step_num, "done", result["result_summary"])
     emit(f"  ✓ Step {step_num} done")
     progress.append(f"✓ Step {step_num} done")
-
-    return {
-        "step_number": step_num,
-        "description": step["description"],
-        "tool": step["tool"],
-        "result_text": result_text,
-        "failed": failed,
-        "result_summary": summary,
-        "status": "done",
-    }
+    return result
 
 
-def enrich_context(context: dict[str, Any], tier_results: list[dict[str, Any]]) -> None:
-    """Extract context from tier results (app hints, technologies, etc.)."""
-    for result in tier_results:
-        text = result.get("result_text", "").lower()
-        if result.get("tool") == "fingerprint_target":
-            for app in ("phpmyadmin", "wordpress", "joomla", "jenkins", "grafana"):
-                if app in text:
-                    context["app_hint"] = app
-                    break
-            for tech in ("php", "apache", "nginx", "mysql", "postgresql", "python", "node"):
-                if tech in text and tech not in context.get("techs", []):
-                    context.setdefault("techs", []).append(tech)
-
-
-def revision_reason(tier_results: list[dict[str, Any]]) -> str:
-    """Build a reason string for plan revision."""
-    failures = [r for r in tier_results if r.get("failed")]
-    if failures:
-        return f"{len(failures)}/{len(tier_results)} steps failed"
-    blocks = [r for r in tier_results if r.get("policy_action") in ("stop_and_replan", "stop")]
-    if blocks:
-        return "Attack feedback signals indicate blocking/WAF"
-    return "Results suggest plan adjustment needed"
-
-
-def _truncate(text: str, max_len: int) -> str:
-    """Truncate text to max_len characters."""
-    if len(text) <= max_len:
-        return text
-    return text[:max_len] + "..."
+# Re-export for backward compatibility
+__all__ = [
+    "enrich_context",
+    "execute_single_step",
+    "execute_tier_parallel",
+    "get_existing_plan",
+    "get_session_and_target",
+    "group_by_tier",
+    "revision_reason",
+]

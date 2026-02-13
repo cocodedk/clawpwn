@@ -1,8 +1,4 @@
-"""Code-driven plan executor: LLM plans, code executes, LLM summarizes.
-
-Reduces LLM round-trips from 16+ to ~3 by executing tool calls
-deterministically and running independent steps in parallel.
-"""
+"""Code-driven plan executor: LLM plans, code executes, LLM summarizes."""
 
 from __future__ import annotations
 
@@ -11,7 +7,12 @@ from typing import Any
 
 from clawpwn.ai.nli.tool_executors.plan_executors import _sort_steps_by_speed
 
-from .plan_helpers import is_llm_dependent_step, needs_revision
+from .plan_helpers import (
+    build_plan_prompt,
+    is_focused_request,
+    is_llm_dependent_step,
+    needs_revision,
+)
 from .plan_llm_calls import generate_plan, revise_plan, summarize_results
 from .plan_runner import (
     enrich_context,
@@ -34,15 +35,7 @@ def run_plan_executor(
     on_progress: Any | None = None,
     debug: bool = False,
 ) -> dict[str, Any]:
-    """Execute a scan/attack request using code-driven plan execution.
-
-    Same return format as ``run_agent_loop()`` — drop-in compatible.
-
-    Phases:
-    1. Resume existing plan OR generate a new one via single Sonnet call.
-    2. Execute steps tier-by-tier, parallel within each tier.
-    3. Summarize all results via single Sonnet call.
-    """
+    """Execute a scan/attack request via code-driven plan execution."""
     progress_updates: list[str] = []
     is_streamed = on_progress is not None
 
@@ -63,6 +56,11 @@ def run_plan_executor(
         )
 
     existing_plan = get_existing_plan(session)
+    if existing_plan and is_focused_request(user_message):
+        _emit("New specific request — replacing previous plan...")
+        progress_updates.append("Cleared stale plan for focused request")
+        session.clear_plan()
+        existing_plan = None
     if existing_plan:
         _emit("Resuming existing plan...")
         progress_updates.append("Resuming existing plan")
@@ -70,7 +68,8 @@ def run_plan_executor(
     else:
         _emit("Generating attack plan...")
         progress_updates.append("Generating attack plan")
-        raw_steps = generate_plan(llm, system_prompt, user_message, tools)
+        plan_prompt = build_plan_prompt(system_prompt, user_message, project_dir)
+        raw_steps = generate_plan(llm, plan_prompt, user_message, tools)
         if raw_steps is None:
             from .executor import run_agent_loop
 

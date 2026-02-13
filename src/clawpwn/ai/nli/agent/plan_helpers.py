@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
+
+# External tool names that signal a focused (non-exhaustive) request.
+_SPECIFIC_TOOL_RE = re.compile(
+    r"\b(hydra|sqlmap|nikto|nuclei|nmap|wpscan|testssl|feroxbuster|"
+    r"gobuster|dirb|masscan|whatweb|wafw00f|sslscan|zap|burp|"
+    r"metasploit|msfconsole)\b",
+    re.IGNORECASE,
+)
 
 
 def classify_intent(
@@ -10,13 +20,7 @@ def classify_intent(
     user_message: str,
     has_pending_plan: bool,
 ) -> str:
-    """Classify user intent as plan_execute or conversational.
-
-    If a pending plan already exists, skip the LLM call entirely and return
-    ``plan_execute`` so we resume where we left off.
-
-    Returns one of: ``"plan_execute"`` | ``"conversational"``.
-    """
+    """Classify user intent as plan_execute or conversational."""
     if has_pending_plan:
         return "plan_execute"
 
@@ -79,6 +83,9 @@ def step_to_dispatch_params(
             params["tools"] = [variant]
         if vuln_categories:
             params["vuln_categories"] = vuln_categories
+        svc_kw = [s["product"] for s in context.get("services", []) if s.get("product")]
+        if svc_kw:
+            params["service_keywords"] = svc_kw
         return ("web_scan", params)
 
     if base_tool == "network_scan":
@@ -112,8 +119,18 @@ def step_to_dispatch_params(
         return ("web_search", {"query": query})
 
     if step_tool == "research_vulnerabilities":
-        techs = context.get("techs", [])
-        return ("research_vulnerabilities", {"target": target, "technologies": techs})
+        services = context.get("services", [])
+        if services:
+            svc = services[0]
+            return (
+                "research_vulnerabilities",
+                {
+                    "service": svc["product"],
+                    "version": "",
+                    "target": target,
+                },
+            )
+        return ("research_vulnerabilities", {"service": target, "version": ""})
 
     if step_tool == "run_custom_script":
         script = context.get("script", "")
@@ -150,3 +167,31 @@ def needs_revision(tier_results: list[dict[str, Any]]) -> bool:
 def is_llm_dependent_step(step_tool: str) -> bool:
     """Return True for steps that need LLM-generated params."""
     return step_tool in ("run_custom_script", "suggest_tools")
+
+
+def is_focused_request(user_message: str) -> bool:
+    """Return True if the user asked for a specific tool or narrow action."""
+    return bool(_SPECIFIC_TOOL_RE.search(user_message))
+
+
+def build_plan_prompt(
+    system_prompt: str,
+    user_message: str,
+    project_dir: Path,
+) -> str:
+    """Return focused prompt for specific-tool requests, else full prompt."""
+    if not is_focused_request(user_message):
+        return system_prompt
+
+    from clawpwn.ai.nli.tool_executors import format_availability_report
+    from clawpwn.ai.nli.tools.tool_metadata import format_speed_table
+
+    from .context import get_project_context
+    from .prompt import FOCUSED_PLAN_PROMPT
+
+    base = FOCUSED_PLAN_PROMPT.format(
+        tool_status=format_availability_report(),
+        speed_table=format_speed_table(),
+    )
+    ctx = get_project_context(project_dir)
+    return f"{base}\n\nCurrent project state:\n{ctx}" if ctx else base

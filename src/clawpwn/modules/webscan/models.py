@@ -16,6 +16,7 @@ class WebScanConfig:
     concurrency: int = 10
     verbose: bool = False
     scan_types: list[str] = field(default_factory=lambda: ["all"])
+    service_keywords: list[str] = field(default_factory=list)
 
 
 @dataclass

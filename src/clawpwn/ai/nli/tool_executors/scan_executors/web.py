@@ -42,6 +42,7 @@ def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
         concurrency=concurrency,
         verbose=True,
         scan_types=scan_types,
+        service_keywords=params.get("service_keywords", []),
     )
 
     # Print plugin progress live to stdout

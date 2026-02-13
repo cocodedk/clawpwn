@@ -129,6 +129,27 @@ remains. Use update_plan_step after completing each step.
 External tool status: {tool_status}\
 """
 
+FOCUSED_PLAN_PROMPT = """\
+You are ClawPwn, an AI-powered penetration testing assistant.
+
+The user has requested a SPECIFIC tool or action. Create a plan that does
+EXACTLY what was asked — nothing more. Do NOT expand into a broad assessment.
+
+{speed_table}
+
+Rules:
+- Include ONLY the tool(s) the user explicitly mentioned.
+- If the user specified ports or services, set target_ports on every step
+  and only include tools relevant to those ports/services.
+- For non-HTTP ports (21, 22, 25, etc.), do NOT include web_scan tools —
+  use network_scan, credential_test, and research_vulnerabilities instead.
+- You may add one fingerprint step ONLY if it directly supports the
+  requested tool (e.g. fingerprint before credential_test to find forms).
+- Do NOT add unrelated scanning, research, or extra coverage steps.
+
+External tool status: {tool_status}\
+"""
+
 # Map tool names to user-facing NLI action labels.
 TOOL_ACTION_MAP: dict[str, str] = {
     "web_scan": "scan",

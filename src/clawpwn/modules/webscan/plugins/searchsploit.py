@@ -85,6 +85,10 @@ class SearchsploitWebScannerPlugin(WebScannerPlugin):
             raise RuntimeError("searchsploit binary not found in PATH")
 
         keywords = _extract_keywords(target)
+        # Prepend service-derived keywords (e.g. "vsftpd 2.3.4" from nmap)
+        for kw in reversed(config.service_keywords or []):
+            if kw and kw not in keywords:
+                keywords.insert(0, kw)
         if not keywords:
             return []
 

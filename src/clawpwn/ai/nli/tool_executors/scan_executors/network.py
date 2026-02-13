@@ -9,6 +9,18 @@ from typing import Any
 from clawpwn.utils.async_utils import safe_async_run
 
 
+def _format_services(host_info: Any) -> str:
+    """Format discovered services with product/version info."""
+    lines: list[str] = []
+    for svc in getattr(host_info, "services", []):
+        product = getattr(svc, "product", "") or ""
+        version = getattr(svc, "version", "") or ""
+        name = getattr(svc, "name", "") or ""
+        label = f"{product} {version}".strip() or name
+        lines.append(f"  {svc.port}/{svc.protocol}: {label}")
+    return "\n".join(lines)
+
+
 def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
     """Run a host port scan."""
     from clawpwn.config import get_project_db_path
@@ -43,6 +55,8 @@ def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
                 parallel_groups=parallel,
             )
         )
+        # Build rich output with service versions
+        svc_lines = _format_services(host_info)
         open_ports = ", ".join(str(p) for p in host_info.open_ports) or "none"
 
         # Log the scan action
@@ -61,13 +75,21 @@ def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
                             "depth": depth,
                             "target": target,
                             "open_ports_count": len(host_info.open_ports),
-                            "open_ports": list(host_info.open_ports)[:20],  # Limit for size
+                            "open_ports": list(host_info.open_ports)[:20],
                         }
                     ),
                 )
         except Exception:
             pass
 
+        if not host_info.open_ports:
+            return (
+                f"Host scan of {target}: NO OPEN PORTS FOUND. "
+                "The host may be down, unreachable, or firewalled. "
+                "Verify the target IP is correct before continuing."
+            )
+        if svc_lines:
+            return f"Host scan of {target} complete.\nServices:\n{svc_lines}"
         return f"Host scan of {target} complete. Open ports: {open_ports}."
     except Exception as exc:
         return f"Network scan failed: {exc}"

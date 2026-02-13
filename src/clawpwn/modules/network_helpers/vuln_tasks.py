@@ -17,11 +17,13 @@ async def run_vuln_lookup(
     """Run vulnerability lookup for unique services."""
     unique: dict[str, tuple[str, str]] = {}
     for service in services:
-        if not service.name:
+        # Prefer product (e.g. "vsftpd") over generic name (e.g. "ftp")
+        label = getattr(service, "product", "") or service.name
+        if not label:
             continue
-        key = f"{service.name}:{service.version}"
+        key = f"{label}:{service.version}"
         if key not in unique:
-            unique[key] = (service.name, service.version)
+            unique[key] = (label, service.version)
     if not unique:
         return []
 

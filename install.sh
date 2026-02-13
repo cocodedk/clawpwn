@@ -226,11 +226,13 @@ fi
 
 # searchsploit fallback via git when package manager did not provide exploitdb
 if ! command -v searchsploit >/dev/null 2>&1; then
-  echo "  Installing searchsploit via git..."
+  echo "  Installing searchsploit via git (this may take a minute — ~350 MB)..."
   if [ ! -d "$HOME/.local/share/exploitdb/.git" ]; then
     rm -rf "$HOME/.local/share/exploitdb" 2>/dev/null || true
-    git clone --depth 1 https://gitlab.com/exploit-database/exploitdb.git "$HOME/.local/share/exploitdb" 2>&1 \
-      || git clone --depth 1 https://github.com/offensive-security/exploitdb.git "$HOME/.local/share/exploitdb" 2>&1 \
+    git clone --depth 1 --progress \
+      https://gitlab.com/exploit-database/exploitdb.git "$HOME/.local/share/exploitdb" 2>&1 \
+      || git clone --depth 1 --progress \
+        https://github.com/offensive-security/exploitdb.git "$HOME/.local/share/exploitdb" 2>&1 \
       || true
   fi
   if [ -f "$HOME/.local/share/exploitdb/searchsploit" ]; then
@@ -241,7 +243,15 @@ if ! command -v searchsploit >/dev/null 2>&1; then
       sed "s|/opt/exploitdb|$HOME/.local/share/exploitdb|g" \
         "$HOME/.local/share/exploitdb/.searchsploit_rc" > "$HOME/.searchsploit_rc" 2>/dev/null || true
     fi
+  else
+    echo "  WARNING: searchsploit not found after clone — exploitdb may have failed to download"
   fi
+fi
+
+# Update searchsploit database
+if command -v searchsploit >/dev/null 2>&1; then
+  echo "  Updating searchsploit database..."
+  searchsploit -u >/dev/null 2>&1 || true
 fi
 
 # Verify web scanners — required tools error loudly, truly optional ones don't
@@ -294,20 +304,21 @@ if [ -z "$cred_wordlist" ] && [ -f "/usr/share/wordlists/rockyou.txt.gz" ] && co
   [ -s "$gz_target" ] && cred_wordlist="$gz_target"
 fi
 
-# Direct download fallback: fetch rockyou.txt to /tmp first, then persist locally.
+# Direct download fallback: use previously downloaded copy or fetch rockyou.txt.
 if [ -z "$cred_wordlist" ]; then
+  local_rockyou="$wordlist_dir/rockyou.txt"
   tmp_rockyou="/tmp/rockyou.txt"
-  if command -v wget >/dev/null 2>&1; then
-    echo "  Downloading rockyou.txt to /tmp..."
+  if [ -s "$local_rockyou" ]; then
+    cred_wordlist="$local_rockyou"
+  elif [ -s "$tmp_rockyou" ]; then
+    cp -f "$tmp_rockyou" "$local_rockyou" 2>/dev/null || true
+    cred_wordlist="$([ -s "$local_rockyou" ] && echo "$local_rockyou" || echo "$tmp_rockyou")"
+  elif command -v wget >/dev/null 2>&1; then
+    echo "  Downloading rockyou.txt..."
     wget -qO "$tmp_rockyou" "https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt" >/dev/null 2>&1 || true
     if [ -s "$tmp_rockyou" ]; then
-      local_rockyou="$wordlist_dir/rockyou.txt"
       cp -f "$tmp_rockyou" "$local_rockyou" 2>/dev/null || true
-      if [ -s "$local_rockyou" ]; then
-        cred_wordlist="$local_rockyou"
-      else
-        cred_wordlist="$tmp_rockyou"
-      fi
+      cred_wordlist="$([ -s "$local_rockyou" ] && echo "$local_rockyou" || echo "$tmp_rockyou")"
     fi
   fi
 fi
@@ -579,15 +590,40 @@ echo "  persistent volume: clawpwn_pgdata"
 echo "  connection URL written to .env and .env.experience"
 echo "  experience seeds installed: $seed_count"
 
-echo "[8/8] Starting Metasploitable2 lab target..."
+echo "[8/8] Metasploitable2 lab target..."
 
-# Start msf2 via compose (idempotent — won't recreate if already running)
-compose_run up -d msf2 >/dev/null 2>&1
+# Check if msf2 is already running
+msf2_running=false
+if "${DOCKER_PREFIX[@]}" docker inspect --format '{{.State.Running}}' msf2 2>/dev/null | grep -q true; then
+  msf2_running=true
+fi
 
-msf2_id="$(compose_run ps -q msf2)"
-if [ -z "$msf2_id" ]; then
-  echo "  Warning: msf2 container not found. Skipping Metasploitable2 setup."
+if $msf2_running; then
+  echo "  msf2 container already running."
+  msf2_id="$("${DOCKER_PREFIX[@]}" docker inspect --format '{{.ID}}' msf2 2>/dev/null)"
 else
+  echo ""
+  echo "  Metasploitable2 is a vulnerable VM used as a practice target (~800 MB Docker image)."
+  printf "  Do you want to pull and start it? [Y/n] "
+  read -r msf2_answer </dev/tty 2>/dev/null || msf2_answer="y"
+  msf2_answer="${msf2_answer:-y}"
+  if [[ ! "$msf2_answer" =~ ^[Yy] ]]; then
+    echo "  Skipping Metasploitable2. You can start it later with: ./start-lab.sh"
+    msf2_id=""
+  else
+    # Remove stopped container with the same name before starting fresh
+    "${DOCKER_PREFIX[@]}" docker rm -f msf2 >/dev/null 2>&1 || true
+    echo "  Pulling and starting msf2 (this may take a few minutes on first run)..."
+    compose_run pull msf2 2>&1 | grep -E 'Pull|Download|Extracting|Status|Digest' || true
+    compose_run up -d msf2
+    msf2_id="$(compose_run ps -q msf2 2>/dev/null || true)"
+    if [ -z "$msf2_id" ]; then
+      echo "  WARNING: msf2 container failed to start. Check: docker compose logs msf2"
+    fi
+  fi
+fi
+
+if [ -n "$msf2_id" ]; then
   # Wait for core services (SSH as indicator)
   echo "  Waiting for services to initialize..."
   msf2_wait=0

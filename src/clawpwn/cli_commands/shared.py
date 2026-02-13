@@ -2,6 +2,7 @@
 
 import socket
 import ssl
+import tempfile
 from pathlib import Path
 
 import typer
@@ -41,9 +42,19 @@ def detect_scheme(host: str, port: int, service: ServiceInfo, timeout: float = 2
 
 
 def get_project_dir() -> Path | None:
-    """Find the project directory by looking for a .clawpwn marker."""
+    """Find the project directory by looking for a .clawpwn marker.
+
+    Stops walking at the system temp root (e.g. ``/tmp``) to avoid
+    matching stale ``.clawpwn`` dirs left by test runs or throwaway work.
+    """
     current = Path.cwd()
+    try:
+        temp_root = Path(tempfile.gettempdir()).resolve()
+    except OSError:
+        temp_root = None
     while current != current.parent:
+        if temp_root and current.resolve() == temp_root:
+            return None
         marker = current / ".clawpwn"
         if marker.exists():
             if (
