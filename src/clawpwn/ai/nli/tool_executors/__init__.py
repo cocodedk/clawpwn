@@ -82,6 +82,15 @@ TOOL_EXECUTORS: dict[str, Any] = {
 }
 
 
+def _run_quiet(executor: Any, params: dict[str, Any], project_dir: Path) -> str:
+    """Run a tool executor with stdout suppressed to hide noisy print() calls."""
+    import contextlib
+    import os
+
+    with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+        return executor(params, project_dir)
+
+
 def dispatch_tool(name: str, params: dict[str, Any], project_dir: Path) -> str:
     """Run the named tool and return a result string.
 
@@ -102,7 +111,10 @@ def dispatch_tool(name: str, params: dict[str, Any], project_dir: Path) -> str:
         result = f"Unknown tool: {name}"
     else:
         try:
-            result = executor(params, project_dir)
+            if is_debug_enabled():
+                result = executor(params, project_dir)
+            else:
+                result = _run_quiet(executor, params, project_dir)
         except Exception as exc:
             result = enrich_missing_tool_error(f"Tool '{name}' failed: {exc}")
 
