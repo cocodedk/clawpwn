@@ -62,13 +62,13 @@ async def _search_tavily(query: str, max_results: int, api_key: str) -> list[Sea
 async def _search_duckduckgo(query: str, max_results: int) -> list[SearchResult]:
     """Search using DuckDuckGo (free, no API key required)."""
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
     except ImportError:
         return [
             SearchResult(
                 title="DuckDuckGo Search Unavailable",
                 url="",
-                snippet="Install duckduckgo-search: pip install duckduckgo-search",
+                snippet="Install ddgs: pip install ddgs",
             )
         ]
 

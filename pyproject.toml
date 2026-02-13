@@ -13,7 +13,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "prompt_toolkit>=3.0.43",
-    "duckduckgo-search>=7.0.0",
+    "ddgs>=7.0.0",
 ]
 
 [project.optional-dependencies]
