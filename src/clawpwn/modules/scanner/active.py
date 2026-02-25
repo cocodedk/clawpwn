@@ -22,9 +22,10 @@ _CATEGORY_CHECK_MAP: dict[str, tuple[str, ...]] = {
 class ActiveScanner:
     """Active scanner that sends test payloads to detect vulnerabilities."""
 
-    def __init__(self, project_dir: Path | None = None):
+    def __init__(self, project_dir: Path | None = None, experience=None):
         self.project_dir = project_dir
         self.session = load_session(project_dir)
+        self.experience = experience
 
     async def scan_target(
         self,
@@ -66,16 +67,31 @@ class ActiveScanner:
             checks.update(_CATEGORY_CHECK_MAP.get(cat, ()))
         return checks or {"sql_injection", "xss", "path_traversal", "command_injection", "idor"}
 
+    def _prioritize(self, check_type: str, target: str, defaults: list[str]) -> list[str]:
+        """Prepend previously effective payloads before the defaults."""
+        if not self.experience:
+            return defaults
+        from clawpwn.modules.experience import ExperienceManager
+
+        domain = ExperienceManager.domain_from_url(target)
+        learned = self.experience.get_effective_payloads(check_type, domain)
+        if not learned:
+            return defaults
+        seen = set(learned)
+        return learned + [p for p in defaults if p not in seen]
+
     async def _test_sql_injection(
         self,
         client: HTTPClient,
         target: str,
         depth: str,
     ) -> list[ScanResult]:
-        return await test_sql_injection(client, target, depth)
+        extra = self._prioritize("sql_injection", target, [])
+        return await test_sql_injection(client, target, depth, extra)
 
     async def _test_xss(self, client: HTTPClient, target: str, depth: str) -> list[ScanResult]:
-        return await test_xss(client, target, depth)
+        extra = self._prioritize("xss", target, [])
+        return await test_xss(client, target, depth, extra)
 
     async def _test_path_traversal(self, client: HTTPClient, target: str) -> list[ScanResult]:
         return await test_path_traversal(client, target)

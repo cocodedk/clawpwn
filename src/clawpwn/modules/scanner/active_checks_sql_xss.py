@@ -12,7 +12,12 @@ from clawpwn.tools.http import HTTPClient
 from .models import ScanResult
 
 
-async def test_sql_injection(client: HTTPClient, target: str, depth: str) -> list[ScanResult]:
+async def test_sql_injection(
+    client: HTTPClient,
+    target: str,
+    depth: str,
+    extra_payloads: list[str] | None = None,
+) -> list[ScanResult]:
     """Test for SQL injection vulnerabilities."""
     payloads = [
         "'",
@@ -24,6 +29,9 @@ async def test_sql_injection(client: HTTPClient, target: str, depth: str) -> lis
         "1' AND 1=1--",
         "1' AND 1=2--",
     ]
+    if extra_payloads:
+        seen = set(extra_payloads)
+        payloads = extra_payloads + [p for p in payloads if p not in seen]
 
     parsed = urlparse(target)
     if not parsed.query:
@@ -136,7 +144,12 @@ async def test_sql_injection(client: HTTPClient, target: str, depth: str) -> lis
     return []
 
 
-async def test_xss(client: HTTPClient, target: str, depth: str) -> list[ScanResult]:
+async def test_xss(
+    client: HTTPClient,
+    target: str,
+    depth: str,
+    extra_payloads: list[str] | None = None,
+) -> list[ScanResult]:
     """Test for XSS vulnerabilities."""
     payloads = [
         "<script>alert('XSS')</script>",
@@ -145,6 +158,9 @@ async def test_xss(client: HTTPClient, target: str, depth: str) -> list[ScanResu
         "<svg onload=alert('XSS')>",
         "<iframe src=javascript:alert('XSS')>",
     ]
+    if extra_payloads:
+        seen = set(extra_payloads)
+        payloads = extra_payloads + [p for p in payloads if p not in seen]
 
     parsed = urlparse(target)
     if not parsed.query:
