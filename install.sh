@@ -70,7 +70,8 @@ echo "[3/8] Installing ClawPwn..."
 uv tool install . --force --reinstall --refresh
 
 # Install scanners
-echo "[4/8] Installing scanners (nmap, masscan, rustscan)..."
+echo "[4/8] Installing scanners (nmap, masscan, rustscan, naabu)..."
+# Note: naabu is installed in step 5 alongside other Go-based tools (needs Go)
 
 # nmap, masscan, and build tools via package manager
 if command -v apt-get >/dev/null 2>&1; then
@@ -90,7 +91,7 @@ fi
 echo "  Installing rustscan via cargo..."
 cargo install rustscan --quiet 2>/dev/null || cargo install rustscan 2>/dev/null || true
 
-# Verify scanners
+# Verify scanners (naabu verified after Go-based installs in step 5)
 for bin in nmap masscan rustscan; do
   if [ "$bin" = "rustscan" ] && [ -x "$HOME/.cargo/bin/rustscan" ]; then
     echo "  $bin: $HOME/.cargo/bin/rustscan"
@@ -122,7 +123,7 @@ _pkg_install() {
   fi
 }
 
-for pkg in nikto hydra sqlmap ffuf feroxbuster testssl.sh zaproxy seclists wordlists; do
+for pkg in amass nikto hydra sqlmap ffuf feroxbuster testssl.sh zaproxy seclists wordlists; do
   _pkg_install "$pkg" || true
 done
 # exploitdb has different names across distros
@@ -213,6 +214,16 @@ if ! command -v ffuf >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
   echo "  Installing ffuf via go install..."
   go install github.com/ffuf/ffuf/v2@latest >/dev/null 2>&1 || true
 fi
+if ! command -v amass >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
+  echo "  Installing amass via go install..."
+  go install github.com/owasp-amass/amass/v4/...@master >/dev/null 2>&1 || true
+fi
+if ! command -v naabu >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/naabu" ] && [ ! -x "$HOME/go/bin/naabu" ]; then
+  if command -v go >/dev/null 2>&1; then
+    echo "  Installing naabu via go install..."
+    go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest >/dev/null 2>&1 || true
+  fi
+fi
 if ! command -v feroxbuster >/dev/null 2>&1; then
   echo "  Installing feroxbuster via cargo..."
   cargo install feroxbuster --quiet >/dev/null 2>&1 || cargo install feroxbuster >/dev/null 2>&1 || true
@@ -254,9 +265,20 @@ if command -v searchsploit >/dev/null 2>&1; then
   searchsploit -u >/dev/null 2>&1 || true
 fi
 
+# Verify naabu (port scanner installed via Go above)
+if [ -x "$HOME/.local/bin/naabu" ]; then
+  echo "  naabu: $HOME/.local/bin/naabu"
+elif [ -x "$HOME/go/bin/naabu" ]; then
+  echo "  naabu: $HOME/go/bin/naabu"
+elif command -v naabu >/dev/null 2>&1; then
+  echo "  naabu: $(command -v naabu)"
+else
+  echo "  naabu: NOT FOUND"
+fi
+
 # Verify web scanners — required tools error loudly, truly optional ones don't
 _web_scanner_missing=()
-for bin in nuclei feroxbuster ffuf hydra nikto searchsploit sqlmap testssl.sh wpscan; do
+for bin in amass nuclei feroxbuster ffuf hydra nikto searchsploit sqlmap testssl.sh wpscan; do
   if command -v "$bin" >/dev/null 2>&1; then
     echo "  $bin: $(command -v "$bin")"
   else

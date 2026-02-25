@@ -37,7 +37,7 @@ def discover(
         "rustscan",
         "--scanner",
         "-s",
-        help="Port scanner: rustscan, masscan, nmap",
+        help="Port scanner: rustscan, masscan, nmap, naabu",
     ),
     parallel: int = typer.Option(
         4,

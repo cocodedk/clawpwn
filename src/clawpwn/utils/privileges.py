@@ -18,6 +18,12 @@ def _resolve_binary(binary: str) -> str | None:
         cargo_path = Path.home() / ".cargo" / "bin" / "rustscan"
         if cargo_path.is_file() and os.access(cargo_path, os.X_OK):
             return str(cargo_path)
+    # Check Go binary locations for naabu
+    if binary == "naabu":
+        for go_dir in [Path.home() / ".local" / "bin", Path.home() / "go" / "bin"]:
+            go_path = go_dir / "naabu"
+            if go_path.is_file() and os.access(go_path, os.X_OK):
+                return str(go_path)
     return shutil.which(binary)
 
 

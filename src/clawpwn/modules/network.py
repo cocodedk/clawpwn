@@ -13,6 +13,7 @@ from clawpwn.modules.network_parts.task_mixin import TaskMixin
 from clawpwn.modules.session import SessionManager
 from clawpwn.modules.vulndb import VulnDBClient
 from clawpwn.tools.masscan import HostResult, MasscanScanner, PortScanResult
+from clawpwn.tools.naabu import NaabuScanner
 from clawpwn.tools.nmap import NmapScanner
 from clawpwn.tools.rustscan import RustScanScanner
 from clawpwn.utils.privileges import can_raw_scan, get_privilege_help
@@ -24,6 +25,7 @@ __all__ = [
     "HostInfo",
     "HostResult",
     "MasscanScanner",
+    "NaabuScanner",
     "NetworkDiscovery",
     "NmapScanner",
     "PortScanResult",
@@ -95,7 +97,9 @@ class NetworkDiscovery(ScannerMixin, TaskMixin, OperationsMixin):
     """Manages network discovery and host enumeration."""
 
     def __init__(self, project_dir: Path | None = None):
-        self._port_scanner: MasscanScanner | NmapScanner | RustScanScanner | None = None
+        self._port_scanner: MasscanScanner | NaabuScanner | NmapScanner | RustScanScanner | None = (
+            None
+        )
         self._scanner_type: str = "rustscan"
         self.nmap: NmapScanner | None = None
         self.project_dir = project_dir
