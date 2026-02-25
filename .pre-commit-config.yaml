@@ -1,9 +1,47 @@
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.2
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
   - repo: local
     hooks:
       - id: pytest
-        name: pytest
-        entry: uv run --frozen pytest -q -p no:cacheprovider
+        name: Run tests with pytest
+        entry: uv run pytest
         language: system
         pass_filenames: false
-        stages: [pre-commit]
+        always_run: true
+        stages: [commit]
+        
+      - id: check-file-size
+        name: Check Python file size limit (200 lines)
+        entry: python3
+        language: system
+        types: [python]
+        exclude: ^tests/
+        args:
+          - -c
+          - |
+            import sys
+            MAX_LINES = 200
+            errors = []
+            for path in sys.argv[1:]:
+                try:
+                    with open(path, 'r') as f:
+                        line_count = sum(1 for _ in f)
+                    if line_count > MAX_LINES:
+                        errors.append(f"  ❌ {path}: {line_count} lines (max {MAX_LINES})")
+                except Exception as e:
+                    print(f"Warning: Could not check {path}: {e}", file=sys.stderr)
+            
+            if errors:
+                print("\n⚠️  FILE SIZE LIMIT EXCEEDED", file=sys.stderr)
+                print("\nThe following files exceed the 200-line limit:", file=sys.stderr)
+                for err in errors:
+                    print(err, file=sys.stderr)
+                print("\nPlease split large files into subfolder modules.", file=sys.stderr)
+                print("Target: 150-200 lines per file.", file=sys.stderr)
+                sys.exit(1)

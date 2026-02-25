@@ -11,6 +11,7 @@ wheels/
 
 # Environment files
 .env
+.env.experience
 
 # Tool caches
 .cache/
@@ -19,3 +20,8 @@ wheels/
 .coverage
 coverage.xml
 htmlcov/
+
+# Project data
+.clawpwn/
+pentests/
+backups/

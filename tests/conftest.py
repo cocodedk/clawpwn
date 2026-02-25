@@ -1,16 +1,13 @@
 """Test configuration and fixtures for ClawPwn."""
 
-import os
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from clawpwn.db.models import Base, Project, Finding, Log
 from clawpwn.db.init import init_db
+from clawpwn.db.models import Finding, Project
 from clawpwn.modules.session import SessionManager
 
 
@@ -77,9 +74,16 @@ def sample_finding(session_manager: SessionManager, sample_project: Project) -> 
 
 @pytest.fixture
 def mock_env_vars(monkeypatch) -> None:
-    """Set up mock environment variables for testing."""
+    """Set up mock environment variables for testing.
+
+    Forces the legacy (text-parse) NLI path so tests that mock ``llm.chat``
+    continue to work.  Tests that exercise the tool-use agent should set
+    ``CLAWPWN_LLM_PROVIDER=anthropic`` explicitly.
+    """
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    # Default to openai so NLI uses the text-parse path (not tool-use agent)
+    monkeypatch.setenv("CLAWPWN_LLM_PROVIDER", "openai")
 
 
 @pytest.fixture

@@ -1,14 +1,13 @@
 """Integration tests for ClawPwn."""
 
-import pytest
-import respx
-from httpx import Response
 from pathlib import Path
 
-from clawpwn.modules.session import SessionManager
-from clawpwn.modules.scanner import Scanner, ScanConfig
-from clawpwn.modules.network import NetworkDiscovery
+import respx
+from httpx import Response
+
 from clawpwn.cli import get_project_dir, require_project
+from clawpwn.modules.scanner import ScanConfig, Scanner
+from clawpwn.modules.session import SessionManager
 
 
 class TestEndToEndWorkflow:
@@ -16,7 +15,6 @@ class TestEndToEndWorkflow:
 
     def test_full_project_lifecycle(self, temp_dir: Path):
         """Test a complete project from init through reporting."""
-        import os
 
         # 1. Create project directory
         project_path = temp_dir / "pentest_project"
@@ -202,6 +200,7 @@ class TestProjectDetection:
     def test_operations_outside_project(self, temp_dir: Path):
         """Test that operations outside a project fail gracefully."""
         import os
+
         import typer
 
         original_cwd = os.getcwd()
@@ -223,8 +222,8 @@ class TestReportGeneration:
 
     def test_report_generation_with_findings(self, project_dir: Path, mock_env_vars):
         """Test report generation when findings exist."""
-        from clawpwn.modules.report import ReportGenerator, ReportConfig
         from clawpwn.db.init import init_db
+        from clawpwn.modules.report import ReportConfig, ReportGenerator
 
         # Setup project with data
         db_path = project_dir / ".clawpwn" / "clawpwn.db"
@@ -243,24 +242,28 @@ class TestReportGeneration:
 
         # Generate report
         generator = ReportGenerator(project_dir)
-        config = ReportConfig(format="html", include_evidence=True)
+        try:
+            config = ReportConfig(format="html", include_evidence=True)
 
-        report_path = generator.generate(config)
+            report_path = generator.generate(config)
 
-        # Verify report was created
-        assert report_path.exists()
-        assert report_path.suffix == ".html"
+            # Verify report was created
+            assert report_path.exists()
+            assert report_path.suffix == ".html"
 
-        # Check content
-        content = report_path.read_text()
-        assert "SQL Injection" in content
-        assert "https://example.com" in content
+            # Check content
+            content = report_path.read_text()
+            assert "SQL Injection" in content
+            assert "https://example.com" in content
+        finally:
+            generator.close()
 
     def test_report_generation_json(self, project_dir: Path, mock_env_vars):
         """Test JSON report generation."""
-        from clawpwn.modules.report import ReportGenerator, ReportConfig
-        from clawpwn.db.init import init_db
         import json
+
+        from clawpwn.db.init import init_db
+        from clawpwn.modules.report import ReportConfig, ReportGenerator
 
         # Setup project with minimal data
         db_path = project_dir / ".clawpwn" / "clawpwn.db"
@@ -272,16 +275,19 @@ class TestReportGeneration:
 
         # Generate JSON report
         generator = ReportGenerator(project_dir)
-        config = ReportConfig(format="json")
+        try:
+            config = ReportConfig(format="json")
 
-        report_path = generator.generate(config)
+            report_path = generator.generate(config)
 
-        # Verify JSON structure
-        assert report_path.exists()
-        data = json.loads(report_path.read_text())
-        assert "report_metadata" in data
-        assert "project" in data
-        assert "findings" in data
+            # Verify JSON structure
+            assert report_path.exists()
+            data = json.loads(report_path.read_text())
+            assert "report_metadata" in data
+            assert "project" in data
+            assert "findings" in data
+        finally:
+            generator.close()
 
 
 class TestLLMIntegration:
@@ -291,10 +297,11 @@ class TestLLMIntegration:
         """Test LLM client can be initialized with API keys."""
         from clawpwn.ai.llm import LLMClient
 
-        # Should initialize without error
-        client = LLMClient()
-        assert client.provider == "anthropic"
-        assert client.api_key == "test-api-key"
+        # mock_env_vars sets CLAWPWN_LLM_PROVIDER=openai for legacy NLI tests.
+        # Verify the client initialises using the configured provider.
+        with LLMClient() as client:
+            assert client.provider == "openai"
+            assert client.api_key == "test-openai-key"
 
 
 class TestPerformance:

@@ -32,3 +32,22 @@ If you add new commands, refresh this file by running:
 ```bash
 uv run clawpwn --help
 ```
+
+## Troubleshooting
+
+### "Scanner requires elevated privileges for raw network access"
+
+Network scans need raw socket access. Options:
+
+1. **Set capabilities (one-time):**
+   ```bash
+   sudo setcap cap_net_raw+ep $(which rustscan)
+   sudo setcap cap_net_raw+ep $(which masscan)
+   ```
+
+2. **Run with sudo:**
+   ```bash
+   sudo clawpwn scan
+   ```
+
+3. **Re-run the installer** and choose **y** when asked to set capabilities on scanner binaries.

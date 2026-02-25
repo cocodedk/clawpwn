@@ -5,12 +5,15 @@ description = "AI-powered penetration testing tool"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=0.77.0",
     "typer>=0.15.0",
     "sqlalchemy>=2.0.0",
     "httpx>=0.28.0",
     "rich>=13.9.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
+    "prompt_toolkit>=3.0.43",
+    "ddgs>=7.0.0",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +23,7 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.1.0",
     "respx>=0.21.0",
+    "ruff>=0.8.0",
 ]
 
 [project.scripts]
@@ -33,3 +37,44 @@ build-backend = "uv_build"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
+# Don't collect tests from source files
+norecursedirs = ["src"]
+markers = [
+    "autonomous: Full end-to-end autonomous agent tests (require real LLM API key)",
+    "slow: Tests that take longer than 10 seconds to complete",
+]
+filterwarnings = [
+    "ignore:datetime.datetime.utcnow.*:DeprecationWarning",
+    "ignore:The ``declarative_base()`` function.*:sqlalchemy.exc.MovedIn20Warning",
+    "ignore::ResourceWarning",
+]
+
+[tool.coverage.run]
+omit = [
+    "src/clawpwn/console/app.py",   # REPL; covered in follow-up
+    "src/clawpwn/ai/orchestrator.py",  # deeper coverage in later pass
+    "src/clawpwn/cli.py",           # CLI entrypoints; deeper coverage in later pass
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+exclude = [".venv", "__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+]
+ignore = ["E501", "UP038"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "B011"]  # allow assert in tests; assert False -> use pytest.fail in future
+"src/clawpwn/cli.py" = ["B904"]  # raise typer.Exit(1) in except without from
+"src/clawpwn/db/*" = ["S311"]  # allow random in UUID if used

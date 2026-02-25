@@ -1,0 +1,45 @@
+---
+description: Keep files around 150 - 200 lines, split large files into submodules
+alwaysApply: true
+---
+
+# File Size Limits
+
+Target **~150 lines** per file. When a file grows beyond this, split it into a subfolder module.
+
+## When to Split
+
+- File exceeds ~150 lines
+- File has multiple distinct responsibilities
+- Related functions can be grouped logically
+
+## How to Split
+
+Convert a large file into a module folder:
+
+```
+# Before
+modules/
+  network.py  (400 lines)
+
+# After
+modules/
+  network/
+    __init__.py      # Public API exports
+    discovery.py     # Host discovery
+    scanning.py      # Port scanning
+    services.py      # Service detection
+```
+
+## Module `__init__.py` Pattern
+
+```python
+# network/__init__.py
+from .discovery import discover_hosts
+from .scanning import scan_ports
+from .services import detect_services
+
+__all__ = ["discover_hosts", "scan_ports", "detect_services"]
+```
+
+This keeps imports unchanged for consumers: `from modules.network import scan_ports`

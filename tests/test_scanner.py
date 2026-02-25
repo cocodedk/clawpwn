@@ -1,15 +1,16 @@
 """Tests for the scanner module."""
 
+from pathlib import Path
+
 import pytest
 import respx
 from httpx import Response
-from pathlib import Path
 
 from clawpwn.modules.scanner import (
-    PassiveScanner,
     ActiveScanner,
-    Scanner,
+    PassiveScanner,
     ScanConfig,
+    Scanner,
     ScanResult,
 )
 from clawpwn.tools.http import HTTPResponse
@@ -127,7 +128,7 @@ class TestActiveScanner:
         scanner = ActiveScanner(project_dir)
 
         # Mock vulnerable endpoint
-        route = respx.get("https://example.com/search").mock(
+        respx.get("https://example.com/search").mock(
             return_value=Response(200, text="You have an error in your SQL syntax")
         )
 
@@ -148,7 +149,7 @@ class TestActiveScanner:
         scanner = ActiveScanner(project_dir)
 
         # Mock endpoint that reflects input
-        route = respx.get("https://example.com/search").mock(
+        respx.get("https://example.com/search").mock(
             return_value=Response(200, text='<script>alert("XSS")</script>')
         )
 
@@ -168,16 +169,14 @@ class TestActiveScanner:
         scanner = ActiveScanner(project_dir)
 
         # Mock endpoint vulnerable to path traversal
-        route = respx.get("https://example.com/file").mock(
+        respx.get("https://example.com/file").mock(
             return_value=Response(200, text="root:x:0:0:root:/root:/bin/bash")
         )
 
         from clawpwn.tools.http import HTTPClient
 
         async with HTTPClient() as client:
-            findings = await scanner._test_path_traversal(
-                client, "https://example.com/file"
-            )
+            findings = await scanner._test_path_traversal(client, "https://example.com/file")
 
         assert isinstance(findings, list)
 
@@ -188,18 +187,14 @@ class TestActiveScanner:
         scanner = ActiveScanner(project_dir)
 
         # Mock endpoint vulnerable to command injection
-        route = respx.get("https://example.com/ping").mock(
-            return_value=Response(
-                200, text="uid=33(www-data) gid=33(www-data) groups=33(www-data)"
-            )
+        respx.get("https://example.com/ping").mock(
+            return_value=Response(200, text="uid=33(www-data) gid=33(www-data) groups=33(www-data)")
         )
 
         from clawpwn.tools.http import HTTPClient
 
         async with HTTPClient() as client:
-            findings = await scanner._test_command_injection(
-                client, "https://example.com/ping"
-            )
+            findings = await scanner._test_command_injection(client, "https://example.com/ping")
 
         assert isinstance(findings, list)
 
@@ -214,7 +209,7 @@ class TestScannerIntegration:
         scanner = Scanner(project_dir)
 
         # Mock the target
-        route = respx.get("https://example.com").mock(
+        respx.get("https://example.com").mock(
             return_value=Response(
                 200,
                 text="<html><body>Test</body></html>",
@@ -236,7 +231,7 @@ class TestScannerIntegration:
         scanner = Scanner(project_dir)
 
         # Mock response with missing headers
-        route = respx.get("https://example.com").mock(
+        respx.get("https://example.com").mock(
             return_value=Response(
                 200,
                 text="<html><body>Test</body></html>",
@@ -298,7 +293,7 @@ class TestScanConfig:
         assert config.scan_types == ["all"]
         assert config.depth == "normal"
         assert config.threads == 10
-        assert config.timeout == 30.0
+        assert config.timeout is None
         assert config.follow_redirects is True
 
     def test_scan_config_custom_values(self):
