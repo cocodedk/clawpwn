@@ -8,7 +8,7 @@ from typing import Any
 
 # External tool names that signal a focused (non-exhaustive) request.
 _SPECIFIC_TOOL_RE = re.compile(
-    r"\b(hydra|sqlmap|nikto|nuclei|nmap|wpscan|testssl|feroxbuster|"
+    r"\b(hydra|sqlmap|nikto|nuclei|nmap|naabu|wpscan|testssl|feroxbuster|"
     r"gobuster|dirb|masscan|whatweb|wafw00f|sslscan|zap|burp|"
     r"metasploit|msfconsole)\b",
     re.IGNORECASE,

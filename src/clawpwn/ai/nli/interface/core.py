@@ -95,6 +95,25 @@ class NaturalLanguageInterface(
                 "action": "debug_toggle",
             }
 
+        if cmd_lower in ("enable verbose", "verbose on", "turn on verbose"):
+            import os
+
+            os.environ["CLAWPWN_VERBOSE"] = "1"
+            return {
+                "success": True,
+                "response": "✓ Verbose mode enabled. Scans will show live progress.",
+                "action": "verbose_toggle",
+            }
+        if cmd_lower in ("disable verbose", "verbose off", "turn off verbose"):
+            import os
+
+            os.environ.pop("CLAWPWN_VERBOSE", None)
+            return {
+                "success": True,
+                "response": "✓ Verbose mode disabled.",
+                "action": "verbose_toggle",
+            }
+
         if self._is_help_query(command):
             topic = self._extract_help_topic(command)
             if topic:

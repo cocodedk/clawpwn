@@ -4,42 +4,12 @@ import asyncio
 import json
 import os
 import shutil
-import subprocess
 import time
 from pathlib import Path
 
 from clawpwn.tools.masscan import HostResult, PortScanResult
 
-
-def _parse_float_env(name: str, default: float | None = 3600.0) -> float | None:
-    """Parse optional float from environment; return default if unset or invalid."""
-    val = os.environ.get(name)
-    if val is None or val == "":
-        return default
-    try:
-        return float(val)
-    except ValueError:
-        return default
-
-
-def _is_root() -> bool:
-    """Check if running as root."""
-    return os.geteuid() == 0
-
-
-def _can_sudo_without_password(binary_path: str) -> bool:
-    """Check if we can run a binary with sudo without password prompt."""
-    if not binary_path or not os.path.isfile(binary_path):
-        return False
-    try:
-        result = subprocess.run(
-            ["sudo", "-n", binary_path, "--help"],
-            capture_output=True,
-            timeout=5,
-        )
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return False
+from .helpers import can_sudo_without_password, is_root, parse_float_env
 
 
 class NaabuScanner:
@@ -78,67 +48,99 @@ class NaabuScanner:
             verbose: Print verbose output
             timeout: Overall scan timeout in seconds
         """
-        use_sudo = not _is_root() and _can_sudo_without_password(self.binary)
+        use_sudo = not is_root() and can_sudo_without_password(self.binary)
 
         cmd = ["sudo", self.binary] if use_sudo else [self.binary]
-        cmd.extend(
-            [
-                "-host",
-                target,
-                "-port",
-                ports,
-                "-rate",
-                str(rate),
-                "-json",
-                "-silent",
-            ]
-        )
+        cmd.extend(["-host", target, "-port", ports, "-rate", str(rate), "-json"])
+        if not verbose:
+            cmd.append("-silent")
 
         if verbose:
             print(f"[verbose] Naabu command: {' '.join(cmd)}")
 
         effective_timeout = (
-            timeout if timeout is not None else _parse_float_env("CLAWPWN_NAABU_TIMEOUT")
+            timeout if timeout is not None else parse_float_env("CLAWPWN_NAABU_TIMEOUT")
         )
         started = time.perf_counter()
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=effective_timeout
-            )
-        except TimeoutError:
-            process.terminate()
-            try:
-                await asyncio.wait_for(process.wait(), timeout=5.0)
-            except TimeoutError:
-                process.kill()
-                await process.wait()
-            elapsed = time.perf_counter() - started
-            raise RuntimeError(
-                f"Naabu scan timed out after {elapsed:.1f}s (timeout={effective_timeout})."
-            ) from None
-        elapsed = time.perf_counter() - started
 
         if verbose:
-            print(f"[verbose] Naabu exit code: {process.returncode} ({elapsed:.2f}s)")
+            return await self._run_streaming(cmd, target, effective_timeout, started)
+        return await self._run_buffered(cmd, target, effective_timeout, started)
+
+    async def _run_buffered(
+        self, cmd: list[str], target: str, timeout: float | None, started: float
+    ) -> list[HostResult]:
+        """Run naabu with buffered I/O (silent mode)."""
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        except TimeoutError:
+            await self._kill(process, started, timeout)
 
         if process.returncode != 0:
-            error_msg = stderr.decode() if stderr else "Unknown error"
-            raise RuntimeError(f"Naabu scan failed: {error_msg}")
+            raise RuntimeError(f"Naabu scan failed: {(stderr or b'').decode() or 'Unknown error'}")
 
-        stdout_text = stdout.decode()
-        stderr_text = stderr.decode() if stderr else ""
-        results = self._parse_output(stdout_text)
-
-        if verbose and stderr_text:
-            print(f"[verbose] Naabu stderr: {stderr_text.strip()}")
-
+        results = self._parse_output(stdout.decode())
         return results if results else [HostResult(ip=target, ports=[])]
+
+    async def _run_streaming(
+        self, cmd: list[str], target: str, timeout: float | None, started: float
+    ) -> list[HostResult]:
+        """Run naabu streaming stderr for live progress in verbose mode."""
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout_lines: list[str] = []
+
+        async def _read_stderr():
+            assert process.stderr is not None
+            async for raw in process.stderr:
+                print(f"[naabu] {raw.decode().rstrip()}")
+
+        async def _read_stdout():
+            assert process.stdout is not None
+            async for raw in process.stdout:
+                line = raw.decode().rstrip()
+                stdout_lines.append(line)
+                try:
+                    entry = json.loads(line)
+                    port = entry.get("port", "?")
+                    ip = entry.get("ip") or entry.get("host", "?")
+                    print(f"[naabu] found {ip}:{port}")
+                except json.JSONDecodeError:
+                    pass
+
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(_read_stderr(), _read_stdout(), process.wait()),
+                timeout=timeout,
+            )
+        except TimeoutError:
+            await self._kill(process, started, timeout)
+        elapsed = time.perf_counter() - started
+        print(f"[verbose] Naabu exit code: {process.returncode} ({elapsed:.2f}s)")
+
+        if process.returncode != 0:
+            raise RuntimeError(f"Naabu scan failed (exit {process.returncode})")
+
+        results = self._parse_output("\n".join(stdout_lines))
+        return results if results else [HostResult(ip=target, ports=[])]
+
+    @staticmethod
+    async def _kill(process, started: float, timeout: float | None) -> None:
+        """Terminate a timed-out process and raise."""
+        process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=5.0)
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+        elapsed = time.perf_counter() - started
+        raise RuntimeError(
+            f"Naabu scan timed out after {elapsed:.1f}s (timeout={timeout})."
+        ) from None
 
     @staticmethod
     def _parse_output(output: str) -> list[HostResult]:

@@ -76,15 +76,15 @@ echo "[4/8] Installing scanners (nmap, masscan, rustscan, naabu)..."
 # nmap, masscan, and build tools via package manager
 if command -v apt-get >/dev/null 2>&1; then
   sudo apt-get update -qq
-  sudo apt-get install -y nmap masscan libcap2-bin build-essential >/dev/null
+  sudo apt-get install -y nmap masscan libcap2-bin build-essential libpcap-dev >/dev/null
 elif command -v dnf >/dev/null 2>&1; then
-  sudo dnf install -y nmap masscan libcap gcc make >/dev/null 2>&1 || sudo dnf install -y nmap libcap gcc >/dev/null
+  sudo dnf install -y nmap masscan libcap gcc make libpcap-devel >/dev/null 2>&1 || sudo dnf install -y nmap libcap gcc libpcap-devel >/dev/null
 elif command -v yum >/dev/null 2>&1; then
-  sudo yum install -y nmap masscan libcap gcc make >/dev/null 2>&1 || sudo yum install -y nmap libcap gcc >/dev/null
+  sudo yum install -y nmap masscan libcap gcc make libpcap-devel >/dev/null 2>&1 || sudo yum install -y nmap libcap gcc libpcap-devel >/dev/null
 elif command -v pacman >/dev/null 2>&1; then
-  sudo pacman -S --noconfirm nmap masscan libcap base-devel >/dev/null
+  sudo pacman -S --noconfirm nmap masscan libcap base-devel libpcap >/dev/null
 elif command -v brew >/dev/null 2>&1; then
-  brew install nmap masscan >/dev/null 2>&1 || brew install nmap >/dev/null
+  brew install nmap masscan libpcap >/dev/null 2>&1 || brew install nmap libpcap >/dev/null
 fi
 
 # rustscan via cargo (NOT snap - snap can't get setcap)

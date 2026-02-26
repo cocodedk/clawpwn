@@ -42,9 +42,7 @@ class ScannerMixin:
     ) -> list[HostResult]:
         """Run port scan with scanner-specific arguments."""
         module = network_module()
-        if scanner_type in ("rustscan", "masscan", "naabu") and not module.can_raw_scan(
-            scanner_type
-        ):
+        if scanner_type in ("rustscan", "masscan") and not module.can_raw_scan(scanner_type):
             raise RuntimeError(module.get_privilege_help(scanner_type))
 
         if scanner_type == "rustscan":
