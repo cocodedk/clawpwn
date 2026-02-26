@@ -14,6 +14,10 @@ EXTERNAL_TOOLS: dict[str, dict[str, str]] = {
     "nmap": {"binary": "nmap", "install": "sudo apt install nmap"},
     "rustscan": {"binary": "rustscan", "install": "cargo install rustscan"},
     "masscan": {"binary": "masscan", "install": "sudo apt install masscan"},
+    "naabu": {
+        "binary": "naabu",
+        "install": "go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest",
+    },
     "nuclei": {
         "binary": "nuclei",
         "install": "go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest",
@@ -56,6 +60,53 @@ def _find_binary(name: str) -> str | None:
     return None
 
 
+def discover_wordlists() -> list[dict[str, str]]:
+    """Find available password/wordlist files on the system."""
+    import os
+
+    candidates = [
+        os.environ.get("CLAWPWN_CRED_WORDLIST", ""),
+        "/usr/share/wordlists/rockyou.txt",
+        "/usr/share/wordlists/rockyou.txt.gz",
+        str(Path.home() / ".local/share/clawpwn/wordlists/rockyou.txt"),
+        "/usr/share/seclists/Passwords/Common-Credentials/10k-most-common.txt",
+        "/usr/share/seclists/Passwords/xato-net-10-million-passwords-10000.txt",
+        str(Path.home() / ".local/share/seclists/Passwords/Common-Credentials/10k-most-common.txt"),
+        str(Path.home() / ".local/share/clawpwn/wordlists/seclists-10k-most-common.txt"),
+        str(Path.home() / ".local/share/clawpwn/wordlists/clawpwn-default-passwords.txt"),
+    ]
+    # Scan password-specific directories for additional files
+    password_dirs = [
+        Path("/usr/share/wordlists"),
+        Path("/usr/share/seclists/Passwords"),
+        Path("/usr/share/seclists/Usernames"),
+        Path.home() / ".local/share/clawpwn/wordlists",
+        Path.home() / ".local/share/seclists/Passwords",
+        Path.home() / ".local/share/seclists/Usernames",
+    ]
+    for d in password_dirs:
+        if d.is_dir():
+            for f in d.rglob("*.txt"):
+                candidates.append(str(f))
+
+    seen: set[str] = set()
+    found: list[dict[str, str]] = []
+    for path_str in candidates:
+        if not path_str:
+            continue
+        p = Path(path_str)
+        resolved = str(p.resolve()) if p.exists() else ""
+        if not resolved or resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            size_mb = p.stat().st_size / (1024 * 1024)
+            found.append({"path": str(p), "size": f"{size_mb:.1f}MB"})
+        except OSError:
+            continue
+    return found
+
+
 def format_availability_report() -> str:
     """Human-readable availability report for injection into system prompt."""
     status = check_tool_availability()
@@ -67,6 +118,14 @@ def format_availability_report() -> str:
     if missing:
         details = "; ".join(f"{n} ({EXTERNAL_TOOLS[n]['install']})" for n in missing)
         parts.append(f"Not installed: {details}.")
+
+    wordlists = discover_wordlists()
+    if wordlists:
+        wl_summary = "; ".join(f"{w['path']} ({w['size']})" for w in wordlists[:8])
+        parts.append(f"Wordlists: {wl_summary}.")
+    else:
+        parts.append("Wordlists: none found. Run install.sh to set up password lists.")
+
     return " ".join(parts) or "No external tools registered."
 
 
