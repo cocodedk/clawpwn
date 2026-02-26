@@ -69,6 +69,7 @@ def get_existing_plan(session: Any) -> list[dict[str, Any]] | None:
             "step_number": s.step_number,
             "description": s.description,
             "tool": s.tool,
+            "target_ports": getattr(s, "target_ports", "") or "",
             "status": s.status,
         }
         for s in plan
@@ -121,24 +122,35 @@ def execute_tier_parallel(
             session.update_step_status(step_num, "in_progress")
             futures[pool.submit(_run_step, step)] = step_num
 
-        for future in as_completed(futures):
-            step_num = futures[future]
-            try:
-                result = future.result()
-            except Exception as exc:
-                result = _step_result(
-                    {"step_number": step_num, "description": "", "tool": ""},
-                    "",
-                    {},
-                    str(exc),
-                    failed=True,
-                )
-
-            results.append(result)
-            session.update_step_status(step_num, "done", result["result_summary"])
-            done_str = f"  ✓ Step {step_num} done"
-            emit(done_str)
-            progress.append(done_str)
+        try:
+            for future in as_completed(futures):
+                step_num = futures[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    result = _step_result(
+                        {"step_number": step_num, "description": "", "tool": ""},
+                        "",
+                        {},
+                        str(exc),
+                        failed=True,
+                    )
+                results.append(result)
+                session.update_step_status(step_num, "done", result["result_summary"])
+                done_str = f"  ✓ Step {step_num} done"
+                emit(done_str)
+                progress.append(done_str)
+        except KeyboardInterrupt:
+            for f in futures:
+                f.cancel()
+            pool.shutdown(wait=False, cancel_futures=True)
+            # Reset in-progress steps to pending so they can be resumed.
+            for sn in futures.values():
+                try:
+                    session.update_step_status(sn, "pending")
+                except Exception:
+                    pass
+            raise
 
     return results
 

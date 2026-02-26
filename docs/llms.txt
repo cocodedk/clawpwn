@@ -1,0 +1,94 @@
+# ClawPwn
+
+> AI-assisted penetration testing toolkit with CLI-first workflow and natural language console.
+
+ClawPwn helps operators run structured, auditable security assessments by combining project-scoped state management, modular scanner orchestration, AI-driven attack planning, and report generation.
+
+## Core Concepts
+
+- **Project-scoped**: Each engagement lives in its own directory with `.clawpwn/` storage (SQLite)
+- **Dual interface**: CLI commands and natural language input via interactive console
+- **AI agent**: LLM-driven tool-use agent plans attacks, executes tiered scans, revises on findings
+- **Plugin scanners**: Modular web/network scanner orchestration (nmap, nuclei, sqlmap, nikto, etc.)
+
+## Commands
+
+- `clawpwn init` — Initialize project in current directory
+- `clawpwn target <url>` — Set active target URL/IP
+- `clawpwn status` — Show target, phase, findings summary
+- `clawpwn scan --depth <normal|deep>` — Run network + web scanning
+- `clawpwn discover --range <cidr>` — Discover live hosts on network
+- `clawpwn autopilot [target] --cycles N --duration H` — Autonomous multi-cycle recon
+- `clawpwn killchain --auto` — AI-guided end-to-end attack phases
+- `clawpwn report --format <html|pdf|json|md>` — Generate findings report
+- `clawpwn logs` — Show project operator logs
+- `clawpwn config show` — Show configuration
+- `clawpwn objective set "..."` — Set engagement objective
+- `clawpwn memory show` — Show project memory
+- `clawpwn console` — Start interactive console
+
+## Autopilot Mode
+
+Autonomous reconnaissance and vulnerability detection. Runs multiple cycles without human interaction. Each cycle: plan → execute tiered scans → summarize → decide whether new surfaces warrant another pass. No exploitation or credential brute-forcing.
+
+Options:
+- `--cycles, -c` (default 5): Maximum recon cycles
+- `--duration, -d` (default 4.0): Maximum run time in hours
+- `--scanner, -s` (default naabu): Port scanner
+- `--verbose, -v`: Show per-step progress
+
+Excluded tools: `credential_test`, `run_custom_script`.
+
+## AI Execution Paths
+
+1. **Plan Executor**: Code-driven, 3 LLM calls (plan + optional revision + summary), tiered parallel execution (fast tools first, slow tools last)
+2. **Agent Loop**: Conversational, up to 16 tool-use round-trips with streaming
+3. **Autopilot**: Supervisor loop over plan executor with follow-up decision calls
+
+Intent classification routes requests to the appropriate path.
+
+## Scanner Support
+
+Network: nmap, masscan, rustscan, naabu
+Web: builtin, nuclei, nikto, sqlmap, feroxbuster, ffuf, wpscan, testssl, zap
+Credentials: built-in form tester, hydra
+
+## Architecture
+
+- **CLI**: Typer + Rich terminal UI
+- **AI Core**: LLMClient supporting Anthropic, OpenAI, OpenRouter
+- **Modules**: Scanner plugins, network discovery, credential testing, vulnerability research
+- **Storage**: Per-project SQLite + optional cross-project Postgres with pgvector
+- **Session**: Mixin-based SessionManager (Project, Memory, FindingLog, State, Plan)
+
+## Configuration
+
+Environment variables:
+- `CLAWPWN_LLM_PROVIDER` — anthropic, openai, openrouter
+- `CLAWPWN_LLM_API_KEY` — API key for selected provider
+- `CLAWPWN_LLM_MODEL` — Model override
+- `CLAWPWN_EXPERIENCE_DB_URL` — Postgres connection for experience DB
+- `CLAWPWN_CRED_WORDLIST` — Path to credential wordlist
+
+Precedence: env vars → project `.clawpwn/.env` → global `~/.clawpwn/config.yml` → defaults.
+
+## Quick Start
+
+```
+./install.sh
+mkdir -p ~/pentest/target && cd ~/pentest/target
+clawpwn init
+clawpwn target https://example.com
+clawpwn scan --depth normal
+clawpwn autopilot --cycles 3
+```
+
+## Links
+
+- Source: https://github.com/cocodedk/clawpwn
+- Site: https://cocodedk.github.io/clawpwn/
+- Author: Babak Bandpey — https://cocode.dk
+
+## Safety
+
+For authorized security testing only. Use with explicit written permission and within legal scope. MIT License.

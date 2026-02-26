@@ -25,10 +25,10 @@ def scan(
         "rustscan",
         "--scanner",
         "-s",
-        help="Port scanner: rustscan, masscan, nmap",
+        help="Port scanner: rustscan, masscan, nmap, naabu",
     ),
     parallel: int = typer.Option(
-        4,
+        40,
         "--parallel",
         "-p",
         help="Number of parallel port groups for range scans",
@@ -81,7 +81,7 @@ def scan(
     async def run_scan():
         port_scanner_name = normalize_scanner(scanner)
         effective_depth = normalize_depth(depth, default="normal")
-        parallel_groups = coerce_positive_int(parallel, default=4)
+        parallel_groups = coerce_positive_int(parallel, default=40)
         selected_web_tools = parse_web_tools(web_tools)
         effective_web_timeout = coerce_positive_float(web_timeout, default=45.0)
         effective_web_concurrency = coerce_positive_int(web_concurrency, default=10)

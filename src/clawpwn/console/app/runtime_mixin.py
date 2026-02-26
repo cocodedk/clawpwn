@@ -57,7 +57,10 @@ class RuntimeMixin:
                         continue
                     self._process_input(line)
                 except KeyboardInterrupt:
-                    self.console.print("\n[dim]Use 'exit' to quit[/dim]")
+                    try:
+                        self.console.print("\n[dim]Use 'exit' to quit[/dim]")
+                    except ValueError:
+                        pass
                 except EOFError:
                     self.console.print("\n[green]Goodbye![/green]")
                     break

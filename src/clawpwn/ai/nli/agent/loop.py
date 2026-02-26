@@ -54,7 +54,7 @@ class ToolUseAgent:
         has_pending = self._has_pending_plan()
         intent = classify_intent(self.llm, user_message, has_pending)
 
-        if intent == "plan_execute":
+        if intent in ("plan_execute", "plan_new"):
             from .plan_executor import run_plan_executor
 
             return run_plan_executor(
@@ -65,6 +65,7 @@ class ToolUseAgent:
                 user_message=user_message,
                 on_progress=self.on_progress,
                 debug=debug,
+                replace_plan=intent == "plan_new",
             )
 
         return run_agent_loop(

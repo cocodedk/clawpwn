@@ -22,7 +22,7 @@ def normalize_verbose(verbose: bool) -> bool:
 def normalize_scanner(scanner: str | None, default: str = "rustscan") -> str:
     """Normalize and validate scanner name."""
     scanner_name = scanner.strip().lower() if isinstance(scanner, str) else default
-    return scanner_name if scanner_name in {"rustscan", "masscan", "nmap"} else default
+    return scanner_name if scanner_name in {"rustscan", "masscan", "nmap", "naabu"} else default
 
 
 def normalize_depth(depth: str | None, default: str = "quick") -> str:

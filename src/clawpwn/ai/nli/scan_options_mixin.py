@@ -32,7 +32,7 @@ class ScanOptionsMixin:
         parts = ["!scan", "--scanner", scanner, "--depth", depth]
         if verbose:
             parts.append("--verbose")
-        if parallel != 4:
+        if parallel != 40:
             parts.extend(["--parallel", str(parallel)])
         if udp_full:
             parts.append("--udp-full")

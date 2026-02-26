@@ -24,9 +24,11 @@ class ScannerMixin:
             self._port_scanner = module.MasscanScanner()
         elif scanner_type == "nmap":
             self._port_scanner = module.NmapScanner()
+        elif scanner_type == "naabu":
+            self._port_scanner = module.NaabuScanner()
         else:
             raise ValueError(
-                f"Unknown scanner type: {scanner_type}. Use rustscan, masscan, or nmap."
+                f"Unknown scanner type: {scanner_type}. Use rustscan, masscan, nmap, or naabu."
             )
         return self._port_scanner
 
@@ -37,6 +39,7 @@ class ScannerMixin:
         target: str,
         ports: str,
         verbose: bool,
+        on_port: Any = None,
     ) -> list[HostResult]:
         """Run port scan with scanner-specific arguments."""
         module = network_module()
@@ -66,6 +69,12 @@ class ScannerMixin:
 
         if scanner_type == "nmap":
             return await scanner.scan_host(target, ports=ports, verbose=verbose)
+
+        if scanner_type == "naabu":
+            rate = int(os.environ.get("CLAWPWN_NAABU_RATE", "1000"))
+            return await scanner.scan_host(
+                target, ports=ports, rate=rate, verbose=verbose, on_port=on_port
+            )
 
         raise ValueError(f"Unknown scanner type: {scanner_type}")
 

@@ -15,13 +15,16 @@ from clawpwn.modules.scanner import ScanConfig, Scanner
 from clawpwn.modules.session import SessionManager
 from clawpwn.utils.async_utils import safe_async_run
 
+from .cli_commands.autopilot_command import autopilot
 from .cli_commands.config_command import config
 from .cli_commands.console_command import console_cmd, interactive
 from .cli_commands.discover_command import discover
+from .cli_commands.experience_command import experience
 from .cli_commands.killchain_command import killchain
 from .cli_commands.memory_command import memory, objective
 from .cli_commands.project_init import init
 from .cli_commands.project_state import list_projects, status, target, version
+from .cli_commands.recon_command import recon
 from .cli_commands.report_logs_command import logs, report
 from .cli_commands.scan_command import scan
 from .cli_commands.shared import app, console, detect_scheme, get_project_dir, require_project
@@ -30,6 +33,7 @@ _detect_scheme = detect_scheme
 
 __all__ = [
     "app",
+    "autopilot",
     "console",
     "config",
     "console_cmd",
@@ -37,6 +41,7 @@ __all__ = [
     "create_project_config_template",
     "discover",
     "ensure_project_storage_dir",
+    "experience",
     "get_project_db_path",
     "get_project_dir",
     "get_project_env_path",
@@ -51,6 +56,7 @@ __all__ = [
     "memory",
     "NetworkDiscovery",
     "objective",
+    "recon",
     "load_global_config",
     "load_project_config",
     "report",

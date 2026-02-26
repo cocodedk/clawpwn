@@ -3,7 +3,9 @@
 import json
 
 
-def chat_openai(client, message: str, system_prompt: str | None = None) -> str:
+def chat_openai(
+    client, message: str, system_prompt: str | None = None, *, model: str | None = None
+) -> str:
     """Chat with OpenAI API."""
     if getattr(client, "client", None) is None:
         raise RuntimeError("LLM client is closed; cannot call _chat_openai.")
@@ -25,7 +27,7 @@ def chat_openai(client, message: str, system_prompt: str | None = None) -> str:
     messages.append({"role": "user", "content": message})
 
     payload = {
-        "model": client.model,
+        "model": model or client.model,
         "messages": messages,
         "max_tokens": 4096,
     }

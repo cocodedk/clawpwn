@@ -94,7 +94,7 @@ Scan discovered hosts:
 
 Options:
   --depth quick|normal|deep
-  --scanner rustscan|masscan|nmap
+  --scanner rustscan|masscan|nmap|naabu
   --concurrency 5
   --max-hosts 50
   --verify-tcp (service detection)

@@ -23,6 +23,8 @@ def _format_services(host_info: Any) -> str:
 
 def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
     """Run a host port scan."""
+    import os
+
     from clawpwn.config import get_project_db_path
     from clawpwn.modules.network import NetworkDiscovery
     from clawpwn.modules.session import SessionManager
@@ -33,8 +35,12 @@ def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
     udp = params.get("udp", True)
     udp_full = params.get("udp_full", False)
     verify_tcp = params.get("verify_tcp", True)
-    parallel = params.get("parallel", 4)
+    parallel = params.get("parallel", 40)
     ports_tcp = params.get("ports")
+    verbose = os.environ.get("CLAWPWN_VERBOSE", "").lower() in {"1", "true", "yes", "on"}
+    # When specific ports are requested, avoid deep scan overhead
+    if ports_tcp and "depth" not in params:
+        depth = "quick"
     if udp_full:
         udp = True
     udp_ports = "1-65535" if udp_full else "53,67,123,161,500,514,1434,1900,5353"
@@ -46,7 +52,7 @@ def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
                 target,
                 scan_type=depth,
                 full_scan=depth == "deep",
-                verbose=False,
+                verbose=verbose,
                 verify_tcp=verify_tcp,
                 include_udp=udp,
                 ports_udp=udp_ports if udp else None,

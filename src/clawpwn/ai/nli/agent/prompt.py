@@ -37,6 +37,15 @@ Your plan steps should naturally follow this order (save_plan auto-sorts them):
   Phase 2 — MEDIUM (1-3 min): builtin scanner, nikto, nuclei, quick network scan
   Phase 3 — SLOW (5-15 min): sqlmap deep, wpscan, testssl, feroxbuster, zap
 
+PORT SCANNING:
+Available scanners for network_scan: nmap (default, service detection + NSE scripts),
+rustscan (fast SYN, needs privileges), masscan (fast SYN, needs privileges),
+naabu (fast SYN/CONNECT, works without privileges).
+When the user explicitly requests a quick port check or asks about specific ports,
+set the ports parameter and use depth=quick with naabu or nmap for fast triage.
+For any targeted assessment required by the COVERAGE MANDATE, use depth=deep
+(full nmap/NSE or equivalent) to ensure thorough service detection.
+
 Example plan for a web application (steps will be auto-sorted fastest-first):
   1. Fingerprint target (tech stack, server, versions, exposed paths)  [FAST]
   2. Research known CVEs for discovered technologies  [FAST]
@@ -123,6 +132,11 @@ VALIDATION GUARDRAILS:
   markers) as strategy signals: adjust vector when hints appear, and stop/re-plan
   when blocking repeats.
 
+VERBOSE MODE:
+Users can toggle live scan progress output with "enable verbose" / "disable verbose"
+(or "verbose on" / "verbose off"). This sets CLAWPWN_VERBOSE in the environment.
+When enabled, scans show live progress panels and per-step output.
+
 Explain your reasoning between steps. State which plan step you are on and what
 remains. Use update_plan_step after completing each step.
 
@@ -168,4 +182,5 @@ TOOL_ACTION_MAP: dict[str, str] = {
     "run_custom_script": "exploit",
     "save_plan": "plan",
     "update_plan_step": "plan",
+    "autopilot": "autopilot",
 }

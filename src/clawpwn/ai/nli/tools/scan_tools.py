@@ -94,6 +94,8 @@ NETWORK_SCAN_TOOL: dict[str, Any] = {
     "description": (
         "Scan a single host IP for open ports and services. "
         "Use this when the user provides an IP address (not a URL) and wants port scanning. "
+        "When the user asks about specific ports (e.g. 'is port 21 open'), "
+        "set ports to just those ports and depth=quick. "
         "Defaults: scanner=nmap, depth=deep, verify_tcp=true, verbose=true."
     ),
     "input_schema": {
@@ -105,7 +107,7 @@ NETWORK_SCAN_TOOL: dict[str, Any] = {
             },
             "scanner": {
                 "type": "string",
-                "enum": ["nmap", "rustscan", "masscan"],
+                "enum": ["nmap", "rustscan", "masscan", "naabu"],
                 "description": "Port scanner to use. Default nmap.",
             },
             "depth": {
@@ -128,7 +130,7 @@ NETWORK_SCAN_TOOL: dict[str, Any] = {
             },
             "parallel": {
                 "type": "integer",
-                "description": "Parallel port groups. Default 4.",
+                "description": "Parallel port groups. Default 40.",
             },
         },
         "required": ["target"],
@@ -151,7 +153,7 @@ DISCOVER_HOSTS_TOOL: dict[str, Any] = {
             },
             "scanner": {
                 "type": "string",
-                "enum": ["nmap", "rustscan", "masscan"],
+                "enum": ["nmap", "rustscan", "masscan", "naabu"],
                 "description": "Scanner for host discovery. Default nmap.",
             },
             "concurrency": {

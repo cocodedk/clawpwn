@@ -16,6 +16,8 @@ MAX_EVIDENCE_CHARS = 200
 
 def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
     """Run web vulnerability scan and return compact result text."""
+    import os
+
     from clawpwn.config import get_project_db_path
     from clawpwn.modules.scanner import Scanner
     from clawpwn.modules.session import SessionManager
@@ -40,7 +42,7 @@ def execute_web_scan(params: dict[str, Any], project_dir: Path) -> str:
         depth=depth,
         timeout=timeout,
         concurrency=concurrency,
-        verbose=False,
+        verbose=os.environ.get("CLAWPWN_VERBOSE", "").lower() in {"1", "true", "yes", "on"},
         scan_types=scan_types,
         service_keywords=params.get("service_keywords", []),
     )

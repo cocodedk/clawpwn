@@ -116,7 +116,22 @@ Modes:
 Notes:
   - NLI requires a project and LLM config
   - If NLI is unavailable, use CLI commands
-  - For troubleshooting: enable debug (see help debug)""",
+  - For troubleshooting: enable debug (see help debug)
+  - For scan progress: enable verbose (see help verbose)""",
+    "verbose": """Verbose mode:
+Show live scan progress (discovered ports, scanner output) in your current console session.
+
+Commands:
+  enable verbose    Turn on verbose output
+  disable verbose   Turn off verbose output
+
+When enabled, port scanners stream results as they run:
+  [naabu] found 10.0.0.1:22
+  [naabu] found 10.0.0.1:80
+  [verbose] Naabu exit code: 0 (5.32s)
+
+Also settable via environment variable:
+  CLAWPWN_VERBOSE=1 clawpwn console""",
     "debug": """Debug mode:
 Enable detailed visibility into NLI agent decisions in your current console session.
 

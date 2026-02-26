@@ -49,7 +49,7 @@ class DiscoveryHandlersMixin:
 
             depth = self._param_str(params, "depth", "quick")
             scanner = self._param_str(params, "scanner", "rustscan")
-            parallel = self._param_int(params, "parallel", 4)
+            parallel = self._param_int(params, "parallel", 40)
             verify_tcp = self._param_bool(params, "verify_tcp", True)
             udp = self._param_bool(params, "udp", False)
             udp_full = self._param_bool(params, "udp_full", False)

@@ -22,11 +22,30 @@ from clawpwn.ai.nli.agent.plan_helpers import (
 class TestClassifyIntent:
     """Test intent classification routing."""
 
-    def test_pending_plan_bypasses_llm(self) -> None:
+    def test_pending_plan_resume_uses_llm(self) -> None:
         llm = Mock()
-        result = classify_intent(llm, "scan the target", has_pending_plan=True)
+        llm.chat.return_value = "plan_resume"
+        result = classify_intent(llm, "continue", has_pending_plan=True)
         assert result == "plan_execute"
-        llm.chat.assert_not_called()
+        llm.chat.assert_called_once()
+
+    def test_pending_plan_new_request(self) -> None:
+        llm = Mock()
+        llm.chat.return_value = "plan_new"
+        result = classify_intent(llm, "scan ports 1-100", has_pending_plan=True)
+        assert result == "plan_new"
+
+    def test_pending_plan_conversational(self) -> None:
+        llm = Mock()
+        llm.chat.return_value = "conversational"
+        result = classify_intent(llm, "what did you find?", has_pending_plan=True)
+        assert result == "conversational"
+
+    def test_pending_plan_llm_failure_defaults_resume(self) -> None:
+        llm = Mock()
+        llm.chat.side_effect = RuntimeError("API error")
+        result = classify_intent(llm, "scan", has_pending_plan=True)
+        assert result == "plan_execute"
 
     def test_scan_message_classified_as_plan_execute(self) -> None:
         llm = Mock()

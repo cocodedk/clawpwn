@@ -20,6 +20,18 @@ class PassiveScanner:
         self.project_dir = project_dir
         self.session = load_session(project_dir)
 
+    @staticmethod
+    def extract_tech(response: HTTPResponse) -> str | None:
+        """Extract tech fingerprint from Server / X-Powered-By headers."""
+        parts = []
+        server = response.headers.get("Server", "")
+        if server:
+            parts.append(server)
+        powered = response.headers.get("X-Powered-By", "")
+        if powered:
+            parts.append(powered)
+        return ", ".join(parts) if parts else None
+
     async def scan_response(self, response: HTTPResponse) -> list[ScanResult]:
         """Passively scan an HTTP response for issues."""
         findings: list[ScanResult] = []

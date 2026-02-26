@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from .scan_display import run_scan_with_live_display
+
 
 async def scan_host(
     discovery: Any,
@@ -44,8 +46,14 @@ async def scan_host(
             verbose,
         )
     else:
-        console.print(f"[cyan]●[/] Port scan ([bold]{scanner_type}[/])")
-        results = await discovery._run_port_scan(scanner, scanner_type, target, ports, verbose)
+        results = await run_scan_with_live_display(
+            scan_coro_factory=lambda **kw: discovery._run_port_scan(
+                scanner, scanner_type, target, ports, verbose, **kw
+            ),
+            scanner_type=scanner_type,
+            target=target,
+            console=console,
+        )
 
     host_info = host_info_cls(ip=target, hostname="", os="")
     host_result = results[0] if results else None
@@ -118,25 +126,23 @@ async def scan_host(
             )
         else:
             console.print("[yellow]○[/] Service detection: no results")
-
-    lookup_enabled = env.get("CLAWPWN_VULN_LOOKUP", "true").lower() in {"1", "true", "yes", "on"}
-    max_vuln_results = int(env.get("CLAWPWN_VULN_MAX_RESULTS", "3"))
-
+    lookup_on = env.get("CLAWPWN_VULN_LOOKUP", "true").lower() in {"1", "true", "yes", "on"}
+    max_vulns = int(env.get("CLAWPWN_VULN_MAX_RESULTS", "3"))
     if include_udp:
         if discovery.nmap is None:
             discovery.nmap = nmap_factory()
         udp_ports = ports_udp or env.get("CLAWPWN_MASSCAN_PORTS_UDP", "1-65535")
 
-        if lookup_enabled and host_info.services:
+        if lookup_on and host_info.services:
             udp_results, vuln_lines = await discovery._run_udp_and_vuln_parallel(
                 target,
                 udp_ports,
                 host_info,
                 verbose,
-                max_vuln_results,
+                max_vulns,
             )
-            udp_found = _merge_udp_results(host_info, udp_results, service_info_cls)
-            _print_udp_result(console, udp_found)
+            uf = _merge_udp_results(host_info, udp_results, service_info_cls)
+            _print_udp(console, uf)
             if vuln_lines:
                 console.print("\n[bold]Vulnerability lookup:[/bold]")
                 console.print("\n".join(vuln_lines))
@@ -145,23 +151,17 @@ async def scan_host(
                 "[cyan]UDP scan[/] [dim](this may take a while)[/]", spinner="dots"
             ):
                 udp_results = await discovery.nmap.scan_host_udp(
-                    target,
-                    ports=udp_ports,
-                    verbose=verbose,
+                    target, ports=udp_ports, verbose=verbose
                 )
-            udp_found = _merge_udp_results(host_info, udp_results, service_info_cls)
-            _print_udp_result(console, udp_found)
+            _print_udp(console, _merge_udp_results(host_info, udp_results, service_info_cls))
 
-    if lookup_enabled and host_info.services and not include_udp:
-        vuln_lines = await discovery._run_vuln_lookup(
-            host_info.services, max_results=max_vuln_results
-        )
+    if lookup_on and host_info.services and not include_udp:
+        vuln_lines = await discovery._run_vuln_lookup(host_info.services, max_results=max_vulns)
         if vuln_lines:
             console.print("\n[bold]Vulnerability lookup:[/bold]")
             console.print("\n".join(vuln_lines))
 
     host_info.open_ports = sorted(set(host_info.open_ports))
-
     if discovery.session:
         discovery.session.add_log(
             f"Discovered host {target}: {len(host_info.open_ports)} open ports",
@@ -171,29 +171,29 @@ async def scan_host(
     return host_info
 
 
-def _merge_udp_results(host_info: Any, udp_results: list[Any], service_info_cls: Any) -> int:
-    udp_found = 0
-    if udp_results:
-        udp_host = udp_results[0]
-        for port in udp_host.ports:
-            if port.state != "open":
-                continue
-            udp_found += 1
-            host_info.open_ports.append(port.port)
-            host_info.services.append(
-                service_info_cls(
-                    port=port.port,
-                    protocol=port.protocol,
-                    name=port.service or "udp",
-                    version=port.version,
-                    product=port.product,
-                    banner=f"{port.product} {port.version}".strip(),
-                )
+def _merge_udp_results(host_info: Any, udp_results: list[Any], svc_cls: Any) -> int:
+    if not udp_results:
+        return 0
+    count = 0
+    for p in udp_results[0].ports:
+        if p.state != "open":
+            continue
+        count += 1
+        host_info.open_ports.append(p.port)
+        host_info.services.append(
+            svc_cls(
+                port=p.port,
+                protocol=p.protocol,
+                name=p.service or "udp",
+                version=p.version,
+                product=p.product,
+                banner=f"{p.product} {p.version}".strip(),
             )
-    return udp_found
+        )
+    return count
 
 
-def _print_udp_result(console: Any, udp_found: int) -> None:
+def _print_udp(console: Any, udp_found: int) -> None:
     if udp_found > 0:
         console.print(f"[green]✓[/] UDP scan: [bold green]{udp_found}[/] open ports")
     else:

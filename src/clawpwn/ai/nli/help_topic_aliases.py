@@ -56,4 +56,5 @@ HELP_TOPIC_ALIASES: dict[str, str] = {
     "nikto": "scan",
     "searchsploit": "scan",
     "zap": "scan",
+    "verbose": "verbose",
 }

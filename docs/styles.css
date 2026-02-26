@@ -29,6 +29,8 @@ body {
   overflow-x: hidden;
 }
 
+/* ---- Background layers ---- */
+
 .bg-grid {
   position: fixed;
   inset: 0;
@@ -48,6 +50,52 @@ body {
   pointer-events: none;
 }
 
+/* ---- Navigation ---- */
+
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px clamp(24px, 6vw, 96px);
+  background: rgba(7, 9, 11, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(125, 255, 173, 0.1);
+}
+
+.nav-brand {
+  font-family: Unbounded, "Space Mono", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.nav-links a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  transition: color 0.2s;
+}
+
+.nav-links a:hover {
+  color: var(--primary);
+}
+
+/* ---- Layout ---- */
+
 main {
   position: relative;
   padding: 72px clamp(24px, 6vw, 96px) 96px;
@@ -57,8 +105,10 @@ main {
   margin: 0 auto;
 }
 
+/* ---- Hero ---- */
+
 .hero h1 {
-  font-family: "Unbounded", "Space Mono", sans-serif;
+  font-family: Unbounded, "Space Mono", sans-serif;
   font-size: clamp(42px, 8vw, 92px);
   margin: 12px 0 16px;
   text-transform: uppercase;
@@ -94,6 +144,8 @@ main {
   gap: 16px;
 }
 
+/* ---- Buttons ---- */
+
 .btn {
   text-decoration: none;
   padding: 12px 20px;
@@ -121,10 +173,22 @@ main {
   background: rgba(14, 18, 22, 0.7);
 }
 
+.btn.ghost:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 11px;
+}
+
+/* ---- Stats ---- */
+
 .stats {
   margin-top: 36px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 18px;
 }
 
@@ -141,6 +205,8 @@ main {
   margin-top: 4px;
 }
 
+/* ---- Panels & Cards ---- */
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -151,7 +217,7 @@ main {
 
 .panel h2 {
   margin-top: 0;
-  font-family: "Unbounded", "Space Mono", sans-serif;
+  font-family: Unbounded, "Space Mono", sans-serif;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-size: 18px;
@@ -161,6 +227,10 @@ main {
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
 .card {
@@ -178,6 +248,16 @@ main {
   font-size: 14px;
 }
 
+.section-h3 {
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 13px;
+  margin-top: 0;
+}
+
+/* ---- Stack list ---- */
+
 .stack {
   list-style: none;
   padding: 0;
@@ -191,6 +271,7 @@ main {
   border-bottom: 1px dashed rgba(125, 255, 173, 0.2);
   padding-bottom: 8px;
   gap: 16px;
+  font-size: 13px;
 }
 
 .stack li span {
@@ -198,13 +279,149 @@ main {
   text-transform: uppercase;
   letter-spacing: 0.2em;
   font-size: 11px;
+  white-space: nowrap;
 }
+
+/* ---- Code blocks ---- */
+
+.code-block {
+  background: rgba(5, 10, 12, 0.8);
+  border: 1px solid rgba(91, 209, 255, 0.15);
+  border-radius: 10px;
+  padding: 18px;
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+.code-block pre {
+  margin: 0;
+}
+
+.code-block code {
+  font-family: "Space Mono", monospace;
+  font-size: 13px;
+  color: var(--primary);
+  line-height: 1.6;
+}
+
+code {
+  font-family: "Space Mono", monospace;
+  color: var(--accent);
+  font-size: 0.9em;
+}
+
+/* ---- Tables ---- */
+
+.cmd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.cmd-table th {
+  text-align: left;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 11px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(91, 209, 255, 0.3);
+}
+
+.cmd-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(125, 255, 173, 0.08);
+}
+
+.opt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.opt-table th {
+  text-align: left;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(91, 209, 255, 0.3);
+}
+
+.opt-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(125, 255, 173, 0.08);
+  vertical-align: top;
+}
+
+.opt-table td:first-child {
+  white-space: nowrap;
+}
+
+/* ---- Check list ---- */
+
+.check-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.check-list li {
+  padding: 4px 0 4px 20px;
+  position: relative;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.check-list li::before {
+  content: "\2713";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+}
+
+/* ---- Precedence list ---- */
+
+.precedence {
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.precedence li::marker {
+  color: var(--accent);
+}
+
+/* ---- Notes ---- */
+
+.note {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 12px;
+  font-style: italic;
+}
+
+/* ---- Footer ---- */
 
 .footer {
   text-align: center;
   color: var(--muted);
   font-size: 13px;
 }
+
+.footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: var(--primary);
+}
+
+/* ---- Scanlines ---- */
 
 .scanlines {
   position: fixed;
@@ -231,6 +448,8 @@ main {
   }
 }
 
+/* ---- Responsive ---- */
+
 @media (max-width: 720px) {
   .cta-row {
     flex-direction: column;
@@ -240,5 +459,22 @@ main {
   .stack li {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .nav-links {
+    gap: 12px;
+  }
+
+  .nav-links a {
+    font-size: 10px;
+  }
+
+  .cmd-table {
+    font-size: 11px;
+  }
+
+  .cmd-table th,
+  .cmd-table td {
+    padding: 6px 6px;
   }
 }

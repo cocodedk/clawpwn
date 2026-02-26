@@ -75,10 +75,13 @@ class CommandCompleter(Completer):
         "fingerprint": [],
         "search": ["--max-results"],
         "credtest": ["--app-hint"],
+        "autopilot": ["--cycles", "-c", "--duration", "-d", "--verbose", "-v"],
+        "recon": ["--mode", "--depth"],
+        "experience": ["--domain", "--clear"],
     }
 
     DEPTH_VALUES = ["quick", "normal", "deep"]
-    SCANNER_VALUES = ["rustscan", "masscan", "nmap"]
+    SCANNER_VALUES = ("rustscan", "masscan", "nmap", "naabu")
     WEB_TOOL_VALUES = [
         "builtin",
         "nuclei",

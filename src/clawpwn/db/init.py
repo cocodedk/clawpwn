@@ -28,9 +28,11 @@ def _migrate(engine) -> None:
     insp = inspect(engine)
     if "plan_steps" in insp.get_table_names():
         columns = {col["name"] for col in insp.get_columns("plan_steps")}
-        if "tool" not in columns:
-            with engine.begin() as conn:
+        with engine.begin() as conn:
+            if "tool" not in columns:
                 conn.execute(text("ALTER TABLE plan_steps ADD COLUMN tool TEXT DEFAULT ''"))
+            if "target_ports" not in columns:
+                conn.execute(text("ALTER TABLE plan_steps ADD COLUMN target_ports TEXT DEFAULT ''"))
 
 
 def get_session(db_path: Path):

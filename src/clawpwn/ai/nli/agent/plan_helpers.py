@@ -1,4 +1,4 @@
-"""Intent classification and plan step mapping for the code-driven executor."""
+"""Plan step mapping and helpers for the code-driven executor."""
 
 from __future__ import annotations
 
@@ -6,50 +6,15 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .intent import classify_intent  # noqa: F401 — re-export
+
 # External tool names that signal a focused (non-exhaustive) request.
 _SPECIFIC_TOOL_RE = re.compile(
-    r"\b(hydra|sqlmap|nikto|nuclei|nmap|wpscan|testssl|feroxbuster|"
+    r"\b(hydra|sqlmap|nikto|nuclei|nmap|naabu|wpscan|testssl|feroxbuster|"
     r"gobuster|dirb|masscan|whatweb|wafw00f|sslscan|zap|burp|"
     r"metasploit|msfconsole)\b",
     re.IGNORECASE,
 )
-
-
-def classify_intent(
-    llm: Any,
-    user_message: str,
-    has_pending_plan: bool,
-) -> str:
-    """Classify user intent as plan_execute or conversational."""
-    if has_pending_plan:
-        return "plan_execute"
-
-    # Use the cheap routing model (Haiku) for classification
-    prompt = (
-        "Classify this user message into exactly ONE category.\n"
-        "Respond with ONLY the category name, nothing else.\n\n"
-        "Categories:\n"
-        "- plan_execute: user wants to EXECUTE a scan, attack, or security "
-        "assessment action against a target right now\n"
-        "- conversational: user is asking a question, wants information, "
-        "wants you to write/show/explain a command, requesting status, "
-        "asking for help, setting a target, or any non-execution request. "
-        "Phrases like 'write the command', 'show me', 'what command', "
-        "'how do I', 'explain' are conversational even if they mention "
-        "tools or testing\n\n"
-        f'Message: "{user_message}"'
-    )
-    try:
-        raw = llm.chat(prompt)
-        if not isinstance(raw, str):
-            return "conversational"
-        result = raw.strip().lower()
-        if "plan_execute" in result:
-            return "plan_execute"
-        return "conversational"
-    except Exception:
-        # Default to conversational on failure (safe fallback)
-        return "conversational"
 
 
 def step_to_dispatch_params(
