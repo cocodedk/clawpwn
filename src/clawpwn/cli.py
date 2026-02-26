@@ -23,6 +23,7 @@ from .cli_commands.killchain_command import killchain
 from .cli_commands.memory_command import memory, objective
 from .cli_commands.project_init import init
 from .cli_commands.project_state import list_projects, status, target, version
+from .cli_commands.recon_command import recon
 from .cli_commands.report_logs_command import logs, report
 from .cli_commands.scan_command import scan
 from .cli_commands.shared import app, console, detect_scheme, get_project_dir, require_project
@@ -53,6 +54,7 @@ __all__ = [
     "memory",
     "NetworkDiscovery",
     "objective",
+    "recon",
     "load_global_config",
     "load_project_config",
     "report",
