@@ -122,24 +122,28 @@ def execute_tier_parallel(
             session.update_step_status(step_num, "in_progress")
             futures[pool.submit(_run_step, step)] = step_num
 
-        for future in as_completed(futures):
-            step_num = futures[future]
-            try:
-                result = future.result()
-            except Exception as exc:
-                result = _step_result(
-                    {"step_number": step_num, "description": "", "tool": ""},
-                    "",
-                    {},
-                    str(exc),
-                    failed=True,
-                )
-
-            results.append(result)
-            session.update_step_status(step_num, "done", result["result_summary"])
-            done_str = f"  ✓ Step {step_num} done"
-            emit(done_str)
-            progress.append(done_str)
+        try:
+            for future in as_completed(futures):
+                step_num = futures[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    result = _step_result(
+                        {"step_number": step_num, "description": "", "tool": ""},
+                        "",
+                        {},
+                        str(exc),
+                        failed=True,
+                    )
+                results.append(result)
+                session.update_step_status(step_num, "done", result["result_summary"])
+                done_str = f"  ✓ Step {step_num} done"
+                emit(done_str)
+                progress.append(done_str)
+        except KeyboardInterrupt:
+            for f in futures:
+                f.cancel()
+            raise
 
     return results
 
