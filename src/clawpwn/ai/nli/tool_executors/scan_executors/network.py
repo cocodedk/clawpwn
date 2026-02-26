@@ -35,7 +35,7 @@ def execute_network_scan(params: dict[str, Any], project_dir: Path) -> str:
     udp = params.get("udp", True)
     udp_full = params.get("udp_full", False)
     verify_tcp = params.get("verify_tcp", True)
-    parallel = params.get("parallel", 4)
+    parallel = params.get("parallel", 40)
     ports_tcp = params.get("ports")
     verbose = os.environ.get("CLAWPWN_VERBOSE", "").lower() in {"1", "true", "yes", "on"}
     # When specific ports are requested, avoid deep scan overhead

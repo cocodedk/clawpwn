@@ -16,7 +16,7 @@ def handle_network_scan(
     try:
         depth = handler._param_str(params, "depth", "deep")
         scanner = handler._param_str(params, "scanner", "nmap")
-        parallel = handler._param_int(params, "parallel", 4)
+        parallel = handler._param_int(params, "parallel", 40)
         verify_tcp = handler._param_bool(params, "verify_tcp", True)
         udp = handler._param_bool(params, "udp", True)
         udp_full = handler._param_bool(params, "udp_full", False)

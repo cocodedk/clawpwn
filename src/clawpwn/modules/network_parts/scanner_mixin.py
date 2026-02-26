@@ -39,6 +39,7 @@ class ScannerMixin:
         target: str,
         ports: str,
         verbose: bool,
+        on_port: Any = None,
     ) -> list[HostResult]:
         """Run port scan with scanner-specific arguments."""
         module = network_module()
@@ -71,7 +72,9 @@ class ScannerMixin:
 
         if scanner_type == "naabu":
             rate = int(os.environ.get("CLAWPWN_NAABU_RATE", "1000"))
-            return await scanner.scan_host(target, ports=ports, rate=rate, verbose=verbose)
+            return await scanner.scan_host(
+                target, ports=ports, rate=rate, verbose=verbose, on_port=on_port
+            )
 
         raise ValueError(f"Unknown scanner type: {scanner_type}")
 

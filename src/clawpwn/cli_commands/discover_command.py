@@ -40,7 +40,7 @@ def discover(
         help="Port scanner: rustscan, masscan, nmap, naabu",
     ),
     parallel: int = typer.Option(
-        4,
+        40,
         "--parallel",
         "-p",
         help="Number of parallel port groups for range scans",
@@ -74,7 +74,7 @@ def discover(
     effective_verbose = normalize_verbose(verbose)
     scanner_name = normalize_scanner(scanner)
     depth_value = normalize_depth(depth)
-    parallel_groups = coerce_positive_int(parallel, default=4)
+    parallel_groups = coerce_positive_int(parallel, default=40)
     max_hosts_value = coerce_nonnegative_int(max_hosts, default=0)
     concurrency_value = coerce_positive_int(concurrency, default=5)
     verify_tcp_value = verify_tcp if isinstance(verify_tcp, bool) else False

@@ -39,7 +39,7 @@ class OperationsMixin:
         ports_tcp: str | None = None,
         ports_udp: str | None = None,
         scanner_type: str = "rustscan",
-        parallel_groups: int = 4,
+        parallel_groups: int = 40,
     ) -> Any:
         module = network_module()
         return await scan_host_impl(

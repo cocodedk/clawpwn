@@ -130,7 +130,7 @@ NETWORK_SCAN_TOOL: dict[str, Any] = {
             },
             "parallel": {
                 "type": "integer",
-                "description": "Parallel port groups. Default 4.",
+                "description": "Parallel port groups. Default 40.",
             },
         },
         "required": ["target"],
