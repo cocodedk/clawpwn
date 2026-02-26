@@ -143,6 +143,13 @@ def execute_tier_parallel(
         except KeyboardInterrupt:
             for f in futures:
                 f.cancel()
+            pool.shutdown(wait=False, cancel_futures=True)
+            # Reset in-progress steps to pending so they can be resumed.
+            for sn in futures.values():
+                try:
+                    session.update_step_status(sn, "pending")
+                except Exception:
+                    pass
             raise
 
     return results

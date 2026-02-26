@@ -89,11 +89,15 @@ async def run_scan_with_live_display(
         refresh_per_second=4,
     ) as live:
         scan_task = asyncio.ensure_future(scan_coro_factory(on_port=on_port))
-        while not scan_task.done():
-            await asyncio.sleep(0.25)
-            live.update(create_scan_panel(state, scanner_type, target))
+        try:
+            while not scan_task.done():
+                await asyncio.sleep(0.25)
+                live.update(create_scan_panel(state, scanner_type, target))
 
-        state.complete = True
-        live.update(create_scan_panel(state, scanner_type, target))
+            state.complete = True
+            live.update(create_scan_panel(state, scanner_type, target))
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            scan_task.cancel()
+            raise
 
     return scan_task.result()

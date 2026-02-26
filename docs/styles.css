@@ -66,7 +66,7 @@ body {
 }
 
 .nav-brand {
-  font-family: "Unbounded", "Space Mono", sans-serif;
+  font-family: Unbounded, "Space Mono", sans-serif;
   font-size: 16px;
   font-weight: 700;
   color: var(--primary);
@@ -108,7 +108,7 @@ main {
 /* ---- Hero ---- */
 
 .hero h1 {
-  font-family: "Unbounded", "Space Mono", sans-serif;
+  font-family: Unbounded, "Space Mono", sans-serif;
   font-size: clamp(42px, 8vw, 92px);
   margin: 12px 0 16px;
   text-transform: uppercase;
@@ -217,7 +217,7 @@ main {
 
 .panel h2 {
   margin-top: 0;
-  font-family: "Unbounded", "Space Mono", sans-serif;
+  font-family: Unbounded, "Space Mono", sans-serif;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-size: 18px;
@@ -339,6 +339,16 @@ code {
   border-collapse: collapse;
   font-size: 13px;
   margin-top: 8px;
+}
+
+.opt-table th {
+  text-align: left;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(91, 209, 255, 0.3);
 }
 
 .opt-table td {

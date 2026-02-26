@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +16,8 @@ from clawpwn.ai.nli.tools.tool_metadata import format_speed_table
 
 from .autopilot_prompt import AUTOPILOT_SYSTEM_PROMPT, FOLLOW_UP_DECISION_PROMPT
 from .context import get_project_context
+
+logger = logging.getLogger(__name__)
 
 # Tools excluded from autopilot (active exploitation).
 _EXCLUDED_TOOLS = {"credential_test", "run_custom_script"}
@@ -78,7 +81,7 @@ def clear_plan(project_dir: Path) -> None:
         if db_path:
             SessionManager(db_path).clear_plan()
     except Exception:
-        pass
+        logger.debug("Failed to clear plan for %s", project_dir, exc_info=True)
 
 
 def should_continue(
@@ -97,7 +100,7 @@ def should_continue(
             state = SessionManager(db_path).get_state()
             target = state.target if state else ""
     except Exception:
-        pass
+        logger.debug("Failed to load target for follow-up", exc_info=True)
 
     prompt = FOLLOW_UP_DECISION_PROMPT.format(target=target, summary=summary[:2000])
     routing_model = getattr(llm, "routing_model", None)
@@ -109,14 +112,16 @@ def _parse_follow_up(text: str) -> tuple[bool, str]:
     """Parse the JSON follow-up decision, with regex fallback."""
     try:
         data = json.loads(text)
-        return (bool(data.get("continue", False)), data.get("focus", ""))
+        if isinstance(data, dict):
+            return (bool(data.get("continue", False)), data.get("focus", ""))
     except (json.JSONDecodeError, TypeError):
         pass
     m_json = re.search(r"\{[^}]+\}", text)
     if m_json:
         try:
             data = json.loads(m_json.group())
-            return (bool(data.get("continue", False)), data.get("focus", ""))
+            if isinstance(data, dict):
+                return (bool(data.get("continue", False)), data.get("focus", ""))
         except (json.JSONDecodeError, TypeError):
             pass
     return (False, "")

@@ -12,7 +12,6 @@ def autopilot(
     target: str | None = typer.Argument(None, help="Target URL/IP (uses active if omitted)"),
     max_cycles: int = typer.Option(5, "--cycles", "-c", help="Max recon cycles"),
     max_duration: float = typer.Option(4.0, "--duration", "-d", help="Max hours"),
-    scanner: str = typer.Option("naabu", "--scanner", "-s", help="Port scanner"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show progress details"),
 ) -> None:
     """Run autonomous reconnaissance and vulnerability detection.
@@ -51,8 +50,7 @@ def autopilot(
         Panel(
             f"[bold cyan]Target:[/bold cyan] {effective_target}\n"
             f"[bold cyan]Cycles:[/bold cyan] {max_cycles}  "
-            f"[bold cyan]Duration limit:[/bold cyan] {max_duration}h\n"
-            f"[bold cyan]Scanner:[/bold cyan] {scanner}\n\n"
+            f"[bold cyan]Duration limit:[/bold cyan] {max_duration}h\n\n"
             "[dim]Recon only — no exploitation or credential brute-forcing.[/dim]",
             title="Autopilot",
             border_style="cyan",

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import declarative_base
 
 ExperienceBase = declarative_base()
@@ -12,6 +12,11 @@ class Experience(ExperienceBase):
     """A learned experience from scanning a target."""
 
     __tablename__ = "experiences"
+    __table_args__ = (
+        UniqueConstraint(
+            "check_type", "target_domain", "effective_payload", name="uq_experience_key"
+        ),
+    )
 
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))

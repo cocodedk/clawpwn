@@ -46,16 +46,7 @@ class ExperienceManager:
         if session is None:
             return
         try:
-            self._upsert(
-                session,
-                check_type,
-                domain,
-                result,
-                confidence,
-                payload,
-                tech,
-                evidence,
-            )
+            self._upsert(session, check_type, domain, result, confidence, payload, tech, evidence)
             session.commit()
         except Exception:
             logger.warning("Failed to record experience", exc_info=True)
@@ -155,6 +146,8 @@ class ExperienceManager:
     @staticmethod
     def domain_from_url(url: str) -> str:
         """Extract the netloc (domain) from a URL."""
+        if url and "://" not in url:
+            url = f"http://{url}"
         return urlparse(url).netloc or url
 
     @staticmethod

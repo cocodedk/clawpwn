@@ -107,7 +107,6 @@ clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose
 |---|---|---|
 | `--cycles`, `-c` | 5 | Maximum number of recon cycles |
 | `--duration`, `-d` | 4.0 | Maximum run time in hours |
-| `--scanner`, `-s` | naabu | Port scanner to use |
 | `--verbose`, `-v` | off | Show per-step progress output |
 
 Each cycle generates a recon plan, executes it (fingerprint, research, web/network scanning, directory enumeration), and summarizes results. Between cycles a cheap LLM call evaluates whether new attack surfaces were discovered. The loop stops when coverage is thorough, the cycle limit is reached, or the duration limit expires.
@@ -134,7 +133,7 @@ Console behavior:
 
 Network scanners:
 
-- `nmap`, `masscan`, `rustscan`
+- `nmap`, `masscan`, `rustscan`, `naabu`
 
 Web scanner plugins in runtime:
 

@@ -23,8 +23,9 @@ SPEED-ORDERED PLAN STRUCTURE:
   Phase 3 — SLOW (5-15 min): sqlmap detection, testssl, feroxbuster, deep scan
 
 COVERAGE MANDATE:
-- Test EVERY relevant category: sqli, xss, misconfig, tls, directory traversal,
-  SSRF, IDOR, command injection, file upload, CSRF, CMS-specific issues.
+- Test EVERY relevant category using exact schema names: sqli, xss,
+  path_traversal, command_injection, idor, content_discovery, misconfig,
+  headers, tls, wordpress.
 - Use MULTIPLE tools per category when available.
 - Use depth=deep for all targeted scans.
 - After each scan, check what categories remain UNTESTED and continue.

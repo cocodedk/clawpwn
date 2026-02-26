@@ -85,8 +85,7 @@ def run_plan_executor(
                 ports_from_plan = rs["target_ports"]
                 break
 
-        sorted_steps = _sort_steps_by_speed(raw_steps)
-        created = session.save_plan(sorted_steps)
+        created = session.save_plan(_sort_steps_by_speed(raw_steps))
         steps = [
             {
                 "step_number": s.step_number,
@@ -97,9 +96,8 @@ def run_plan_executor(
             for s in created
         ]
 
-        plan_msg = f"Plan created ({len(steps)} steps, ordered fastest-first)"
-        _emit(plan_msg)
-        progress_updates.append(plan_msg)
+        _emit(msg := f"Plan created ({len(steps)} steps, ordered fastest-first)")
+        progress_updates.append(msg)
 
     # --- Phase 2: Execute tier by tier ---
     context: dict[str, Any] = {"app_hint": "", "techs": [], "vuln_categories": []}
@@ -172,10 +170,14 @@ def run_plan_executor(
                 reason,
             )
             if revised:
-                sorted_revised = _sort_steps_by_speed(revised)
-                created = session.save_plan(sorted_revised)
+                created = session.save_plan(_sort_steps_by_speed(revised))
                 new_steps = [
-                    {"step_number": s.step_number, "description": s.description, "tool": s.tool}
+                    {
+                        "step_number": s.step_number,
+                        "description": s.description,
+                        "tool": s.tool,
+                        "target_ports": s.target_ports or "",
+                    }
                     for s in created
                 ]
                 tiers = group_by_tier(new_steps)
@@ -187,7 +189,6 @@ def run_plan_executor(
     progress_updates.append("Generating summary")
     summary = summarize_results(llm, system_prompt, all_results, target)
     _emit(summary)
-
     return build_result(
         success=True,
         text=summary,

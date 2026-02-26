@@ -89,6 +89,8 @@ class NaabuScanner:
             for line in stdout.decode().strip().splitlines():
                 try:
                     entry = json.loads(line.strip())
+                    if not isinstance(entry, dict):
+                        continue
                     ip = entry.get("ip") or entry.get("host")
                     port = entry.get("port")
                     if ip and isinstance(port, int):
@@ -126,6 +128,8 @@ class NaabuScanner:
                 stdout_lines.append(line)
                 try:
                     entry = json.loads(line)
+                    if not isinstance(entry, dict):
+                        continue
                     port = entry.get("port", "?")
                     ip = entry.get("ip") or entry.get("host", "?")
                     if on_port and isinstance(port, int):

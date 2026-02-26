@@ -35,6 +35,9 @@ class InputRouter:
         "fingerprint",
         "search",
         "credtest",
+        "autopilot",
+        "recon",
+        "experience",
     }
 
     def __init__(self, mode: InputMode = InputMode.AUTO) -> None:

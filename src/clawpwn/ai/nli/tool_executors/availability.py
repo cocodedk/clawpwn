@@ -53,7 +53,11 @@ def _find_binary(name: str) -> str | None:
     if found:
         return found
     home = Path.home()
-    for d in [home / ".local" / "bin", home / ".cargo" / "bin", Path("/usr/local/bin")]:
+    go_bin = os.environ.get("GOBIN", "")
+    go_path = os.environ.get("GOPATH", str(home / "go"))
+    extra = [Path(go_bin)] if go_bin else []
+    extra.append(Path(go_path) / "bin")
+    for d in [home / ".local" / "bin", home / ".cargo" / "bin", Path("/usr/local/bin"), *extra]:
         candidate = d / name
         if candidate.is_file() and os.access(candidate, os.X_OK):
             return str(candidate)

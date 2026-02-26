@@ -80,7 +80,7 @@ def run_autopilot(
             replace_plan=True,
         )
 
-        summary = result.get("text", "No summary available.")
+        summary = str(result.get("text", "No summary available."))
         report.cycle_summaries.append(summary)
         report.cycles = cycle + 1
         con.print(f"\n[green]Cycle {cycle + 1} complete.[/green]")

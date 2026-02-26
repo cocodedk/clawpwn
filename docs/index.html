@@ -20,7 +20,7 @@
         <a href="#commands">Commands</a>
         <a href="#quickstart">Quick Start</a>
         <a href="#architecture">Architecture</a>
-        <a href="https://github.com/cocodedk/clawpwn" class="btn primary btn-sm">GitHub</a>
+        <a href="https://github.com/cocodedk/clawpwn" class="btn primary btn-sm" target="_blank" rel="noopener noreferrer">GitHub</a>
       </div>
     </nav>
 
@@ -107,17 +107,19 @@ clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose</code></pre>
               <li>Each cycle generates a recon plan ordered fastest-first</li>
               <li>Executes tiered tools: fingerprint, research, web scan, network scan</li>
               <li>Summarizes results and evaluates new attack surfaces</li>
-              <li>Cheap LLM call decides: continue or stop</li>
+              <li>Lightweight LLM call evaluates results and decides next steps</li>
               <li>Stops when coverage is thorough, cycle or time limit reached</li>
             </ul>
           </div>
           <div class="card">
             <h3>Options</h3>
             <table class="opt-table">
+              <thead><tr><th>Option</th><th>Description</th></tr></thead>
+              <tbody>
               <tr><td><code>--cycles, -c</code></td><td>Max recon cycles (default: 5)</td></tr>
               <tr><td><code>--duration, -d</code></td><td>Max hours (default: 4.0)</td></tr>
-              <tr><td><code>--scanner, -s</code></td><td>Port scanner (default: naabu)</td></tr>
               <tr><td><code>--verbose, -v</code></td><td>Show per-step progress</td></tr>
+              </tbody>
             </table>
             <p class="note">Excluded tools: <code>credential_test</code>, <code>run_custom_script</code></p>
           </div>
@@ -136,6 +138,8 @@ clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose</code></pre>
             <tr><td><code>scan</code></td><td>Network + web scanning</td><td><code>clawpwn scan --depth deep</code></td></tr>
             <tr><td><code>discover</code></td><td>Discover live hosts</td><td><code>clawpwn discover --range 192.168.1.0/24</code></td></tr>
             <tr><td><code>autopilot</code></td><td>Autonomous recon loop</td><td><code>clawpwn autopilot --cycles 3</code></td></tr>
+            <tr><td><code>recon</code></td><td>Subdomain enumeration (Amass)</td><td><code>clawpwn recon example.com --mode passive</code></td></tr>
+            <tr><td><code>experience</code></td><td>Manage global experience DB</td><td><code>clawpwn experience --domain example.com</code></td></tr>
             <tr><td><code>killchain</code></td><td>AI-guided end-to-end phases</td><td><code>clawpwn killchain --auto</code></td></tr>
             <tr><td><code>report</code></td><td>Generate report</td><td><code>clawpwn report --format html</code></td></tr>
             <tr><td><code>logs</code></td><td>Show project logs</td><td><code>clawpwn logs --limit 100</code></td></tr>
@@ -205,6 +209,10 @@ clawpwn console</code></pre>
             <p><code>nmap</code> &middot; <code>masscan</code> &middot; <code>rustscan</code> &middot; <code>naabu</code></p>
           </div>
           <div class="card">
+            <h3>Recon</h3>
+            <p><code>amass</code> (subdomain enumeration)</p>
+          </div>
+          <div class="card">
             <h3>Web</h3>
             <p><code>builtin</code> &middot; <code>nuclei</code> &middot; <code>nikto</code> &middot; <code>sqlmap</code> &middot; <code>feroxbuster</code> &middot; <code>ffuf</code> &middot; <code>wpscan</code> &middot; <code>testssl</code> &middot; <code>zap</code></p>
           </div>
@@ -251,7 +259,7 @@ clawpwn console</code></pre>
 
       <footer class="footer">
         <p>Built for controlled environments. Designed for clarity.</p>
-        <p>Created by Babak Bandpey &middot; <a href="https://cocode.dk">cocode.dk</a></p>
+        <p>Created by Babak Bandpey &middot; <a href="https://cocode.dk" target="_blank" rel="noopener noreferrer">cocode.dk</a></p>
       </footer>
     </main>
     <div class="scanlines"></div>
