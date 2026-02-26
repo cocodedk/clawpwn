@@ -40,6 +40,7 @@ OPTIONAL_TOOLS: set[str] = {
     "zap",
     "wpscan",
     "testssl",
+    "aws",
 }
 
 RAW_SCAN_TOOLS = ("nmap", "naabu", "masscan")

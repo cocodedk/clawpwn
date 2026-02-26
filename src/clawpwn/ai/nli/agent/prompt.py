@@ -102,7 +102,8 @@ When "Past actions" shows scans were already run against this target:
 
 PENTEST METHODOLOGY — Follow this workflow for every new target:
 1. FINGERPRINT (FAST): Use fingerprint_target to identify technology, version,
-   server stack, exposed paths, forms, and entry points.
+   server stack, exposed paths, forms, and entry points. Use fetch_url to read
+   raw page content when you need to extract specific data (ARNs, tokens, JS).
 2. PLAN: Based on fingerprint results, use save_plan to create a full attack
    plan covering every relevant vulnerability category and tool combination.
    Steps are auto-sorted fastest-first.
@@ -116,9 +117,8 @@ PENTEST METHODOLOGY — Follow this workflow for every new target:
 7. VERIFY & DEEPEN: For each finding, run verification. For each category with
    no findings, try alternative tools/parameters before concluding it is clean.
 8. ESCALATE: If automated tools are exhausted, use run_custom_script for custom
-   payloads or suggest manual steps for categories that need human testing.
-   Before calling run_custom_script, ask the user for explicit approval and
-   wait for a clear yes.
+   payloads, run_command for CLI tools (aws, curl, etc.), or suggest manual steps.
+   Both run_custom_script and run_command require explicit user approval.
 9. SUMMARIZE: After all categories are tested, provide a complete summary:
    what was found, what was tested and clean, what needs manual follow-up.
 
@@ -180,6 +180,8 @@ TOOL_ACTION_MAP: dict[str, str] = {
     "fingerprint_target": "recon",
     "credential_test": "exploit",
     "run_custom_script": "exploit",
+    "run_command": "exploit",
+    "fetch_url": "recon",
     "save_plan": "plan",
     "update_plan_step": "plan",
     "autopilot": "autopilot",

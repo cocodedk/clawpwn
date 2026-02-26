@@ -35,6 +35,7 @@ ALL_TOOLS_TRUE = {
     "zap": True,
     "wpscan": True,
     "testssl": True,
+    "aws": True,
 }
 
 

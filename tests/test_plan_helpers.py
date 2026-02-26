@@ -194,6 +194,25 @@ class TestStepToDispatchParams:
         assert name == "run_custom_script"
         assert params["script"] == "echo test"
 
+    def test_fetch_url(self) -> None:
+        name, params = step_to_dispatch_params("fetch_url", "http://target/page", {})
+        assert name == "fetch_url"
+        assert params["url"] == "http://target/page"
+
+    def test_run_command(self) -> None:
+        ctx = {"command": "aws sns list-topics", "description": "List SNS topics"}
+        name, params = step_to_dispatch_params("run_command", "http://target/", ctx)
+        assert name == "run_command"
+        assert params["command"] == "aws sns list-topics"
+        assert params["description"] == "List SNS topics"
+        assert params["user_approved"] is False
+
+    def test_run_command_missing_context(self) -> None:
+        name, params = step_to_dispatch_params("run_command", "http://target/", {})
+        assert name == "run_command"
+        assert params["command"] == ""
+        assert params["user_approved"] is False
+
     def test_suggest_tools(self) -> None:
         name, params = step_to_dispatch_params("suggest_tools", "http://target/", {})
         assert name == "suggest_tools"
@@ -259,6 +278,12 @@ class TestIsLLMDependentStep:
 
     def test_fingerprint_is_not_dependent(self) -> None:
         assert is_llm_dependent_step("fingerprint_target") is False
+
+    def test_run_command_is_dependent(self) -> None:
+        assert is_llm_dependent_step("run_command") is True
+
+    def test_fetch_url_is_not_dependent(self) -> None:
+        assert is_llm_dependent_step("fetch_url") is False
 
     def test_credential_test_is_not_dependent(self) -> None:
         assert is_llm_dependent_step("credential_test") is False

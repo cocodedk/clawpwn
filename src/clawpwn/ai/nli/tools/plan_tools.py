@@ -48,7 +48,9 @@ SAVE_PLAN_TOOL: dict[str, Any] = {
                                 "network_scan:deep",
                                 "discover_hosts",
                                 "credential_test:hydra",
+                                "fetch_url",
                                 "run_custom_script",
+                                "run_command",
                                 "suggest_tools",
                             ],
                             "description": (

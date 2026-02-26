@@ -37,6 +37,7 @@ EXTERNAL_TOOLS: dict[str, dict[str, str]] = {
         "install": "sudo apt install testssl.sh  # or: git clone https://github.com/drwetter/testssl.sh",
     },
     "hydra": {"binary": "hydra", "install": "sudo apt install hydra"},
+    "aws": {"binary": "aws", "install": "pip install awscli"},
 }
 
 

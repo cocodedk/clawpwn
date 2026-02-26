@@ -49,3 +49,37 @@ FINGERPRINT_TARGET_TOOL: dict[str, Any] = {
         "required": ["target"],
     },
 }
+
+FETCH_URL_TOOL: dict[str, Any] = {
+    "name": "fetch_url",
+    "description": (
+        "Fetch the raw content of a URL and return the response body (HTML, JSON, "
+        "or plain text). Unlike fingerprint_target which returns structured recon "
+        "data (headers, tech stack), this returns the actual page content for parsing — "
+        "e.g. extracting ARNs, tokens, API keys, or hidden data from JavaScript. "
+        "Supports GET, POST, PUT, and DELETE methods."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "URL to fetch (e.g. http://example.com/page).",
+            },
+            "method": {
+                "type": "string",
+                "enum": ["GET", "POST", "PUT", "DELETE"],
+                "description": "HTTP method. Default GET.",
+            },
+            "headers": {
+                "type": "object",
+                "description": "Optional HTTP headers as key-value pairs.",
+            },
+            "body": {
+                "type": "string",
+                "description": "Optional request body (for POST/PUT). Sent as JSON if parseable, else form data.",
+            },
+        },
+        "required": ["url"],
+    },
+}
