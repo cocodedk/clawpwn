@@ -85,7 +85,34 @@ Use `clawpwn --help` for full command help.
 | `objective` | Set/show/clear objective | `clawpwn objective set "Validate auth bypass"` |
 | `memory` | Show/clear project memory | `clawpwn memory show --limit 8` |
 | `version` | Print installed version | `clawpwn version` |
+| `autopilot` | Autonomous recon and vuln detection | `clawpwn autopilot http://10.0.0.5 --cycles 3` |
 | `console` | Start interactive console | `clawpwn console` |
+
+## Autopilot Mode
+
+Autopilot runs unattended, multi-cycle reconnaissance and vulnerability detection driven by the LLM agent. It does **not** perform exploitation or credential brute-forcing.
+
+```bash
+# Basic usage (uses active target)
+clawpwn autopilot
+
+# Specify target, limit to 3 cycles and 1 hour
+clawpwn autopilot http://10.0.0.5 --cycles 3 --duration 1.0
+
+# Verbose output with progress details
+clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--cycles`, `-c` | 5 | Maximum number of recon cycles |
+| `--duration`, `-d` | 4.0 | Maximum run time in hours |
+| `--scanner`, `-s` | naabu | Port scanner to use |
+| `--verbose`, `-v` | off | Show per-step progress output |
+
+Each cycle generates a recon plan, executes it (fingerprint, research, web/network scanning, directory enumeration), and summarizes results. Between cycles a cheap LLM call evaluates whether new attack surfaces were discovered. The loop stops when coverage is thorough, the cycle limit is reached, or the duration limit expires.
+
+Excluded tools (active exploitation): `credential_test`, `run_custom_script`.
 
 ## Interactive Console
 

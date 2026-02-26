@@ -175,4 +175,5 @@ TOOL_ACTION_MAP: dict[str, str] = {
     "run_custom_script": "exploit",
     "save_plan": "plan",
     "update_plan_step": "plan",
+    "autopilot": "autopilot",
 }

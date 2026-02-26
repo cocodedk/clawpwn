@@ -15,6 +15,7 @@ from clawpwn.modules.scanner import ScanConfig, Scanner
 from clawpwn.modules.session import SessionManager
 from clawpwn.utils.async_utils import safe_async_run
 
+from .cli_commands.autopilot_command import autopilot
 from .cli_commands.config_command import config
 from .cli_commands.console_command import console_cmd, interactive
 from .cli_commands.discover_command import discover
@@ -32,6 +33,7 @@ _detect_scheme = detect_scheme
 
 __all__ = [
     "app",
+    "autopilot",
     "console",
     "config",
     "console_cmd",
