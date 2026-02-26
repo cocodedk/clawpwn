@@ -78,7 +78,7 @@ class CommandCompleter(Completer):
     }
 
     DEPTH_VALUES = ["quick", "normal", "deep"]
-    SCANNER_VALUES = ["rustscan", "masscan", "nmap"]
+    SCANNER_VALUES = ["rustscan", "masscan", "nmap", "naabu"]
     WEB_TOOL_VALUES = [
         "builtin",
         "nuclei",

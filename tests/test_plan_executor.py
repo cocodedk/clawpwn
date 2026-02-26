@@ -190,14 +190,14 @@ class TestResumeFromPending:
         llm.chat_with_tools.assert_not_called()
         assert result["success"] is True
 
-    def test_focused_request_clears_stale_plan(
+    def test_replace_plan_clears_stale_plan(
         self,
         project_dir: Path,
         mock_env_vars: None,
         initialized_db: Path,
         session_manager,
     ) -> None:
-        """A specific tool request should replace a pending broad plan."""
+        """replace_plan=True should replace a pending broad plan."""
         from clawpwn.ai.nli.agent.plan_executor import run_plan_executor
 
         session_manager.create_project(str(project_dir))
@@ -240,6 +240,7 @@ class TestResumeFromPending:
                 tools=[_SAVE_PLAN_TOOL],
                 system_prompt="EXHAUSTIVE",
                 user_message="run hydra against ftp port 21",
+                replace_plan=True,
             )
 
         # Should have generated a NEW plan (called chat_with_tools)

@@ -34,6 +34,7 @@ class PlanMixin:
                     {
                         "description": item.get("description", "").strip(),
                         "tool": item.get("tool", ""),
+                        "target_ports": item.get("target_ports", ""),
                     }
                 )
 
@@ -44,6 +45,7 @@ class PlanMixin:
                 step_number=idx,
                 tool=step_data["tool"],
                 description=step_data["description"],
+                target_ports=step_data.get("target_ports", ""),
                 status="pending",
             )
             self.session.add(step)

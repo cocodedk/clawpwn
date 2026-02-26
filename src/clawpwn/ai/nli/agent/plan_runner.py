@@ -69,6 +69,7 @@ def get_existing_plan(session: Any) -> list[dict[str, Any]] | None:
             "step_number": s.step_number,
             "description": s.description,
             "tool": s.tool,
+            "target_ports": getattr(s, "target_ports", "") or "",
             "status": s.status,
         }
         for s in plan

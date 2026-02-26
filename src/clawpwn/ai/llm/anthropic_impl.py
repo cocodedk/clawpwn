@@ -4,7 +4,9 @@ import json
 from typing import Any
 
 
-def chat_anthropic(client, message: str, system_prompt: str | None = None) -> str:
+def chat_anthropic(
+    client, message: str, system_prompt: str | None = None, *, model: str | None = None
+) -> str:
     """Chat with Claude API."""
     if getattr(client, "client", None) is None:
         raise RuntimeError("LLM client is closed; cannot call _chat_anthropic.")
@@ -18,7 +20,7 @@ def chat_anthropic(client, message: str, system_prompt: str | None = None) -> st
     }
 
     payload: dict[str, Any] = {
-        "model": client.model,
+        "model": model or client.model,
         "max_tokens": 4096,
         "messages": [{"role": "user", "content": message}],
     }

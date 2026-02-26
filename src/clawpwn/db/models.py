@@ -127,6 +127,7 @@ class PlanStep(Base):
     step_number = Column(Integer, nullable=False)
     tool = Column(String, default="")  # tool name for speed-tier lookup
     description = Column(Text, nullable=False)
+    target_ports = Column(String, default="")  # e.g. "1-100", "80,443"
     status = Column(String, default="pending")  # pending, in_progress, done, skipped
     result_summary = Column(Text, default="")
     created_at = Column(DateTime(timezone=True), default=_utc_now)

@@ -7,12 +7,7 @@ from typing import Any
 
 from clawpwn.ai.nli.tool_executors.plan_executors import _sort_steps_by_speed
 
-from .plan_helpers import (
-    build_plan_prompt,
-    is_focused_request,
-    is_llm_dependent_step,
-    needs_revision,
-)
+from .plan_helpers import build_plan_prompt, is_llm_dependent_step, needs_revision
 from .plan_llm_calls import generate_plan, revise_plan, summarize_results
 from .plan_runner import (
     enrich_context,
@@ -34,6 +29,7 @@ def run_plan_executor(
     user_message: str,
     on_progress: Any | None = None,
     debug: bool = False,
+    replace_plan: bool = False,
 ) -> dict[str, Any]:
     """Execute a scan/attack request via code-driven plan execution."""
     progress_updates: list[str] = []
@@ -56,9 +52,9 @@ def run_plan_executor(
         )
 
     existing_plan = get_existing_plan(session)
-    if existing_plan and is_focused_request(user_message):
-        _emit("New specific request — replacing previous plan...")
-        progress_updates.append("Cleared stale plan for focused request")
+    if existing_plan and replace_plan:
+        _emit("New request — replacing previous plan...")
+        progress_updates.append("Cleared stale plan for new request")
         session.clear_plan()
         existing_plan = None
     if existing_plan:
@@ -83,18 +79,21 @@ def run_plan_executor(
                 debug=debug,
             )
 
-        # Capture target_ports from LLM output before DB save (not persisted)
         ports_from_plan = ""
         for rs in raw_steps:
-            tp = rs.get("target_ports", "")
-            if tp:
-                ports_from_plan = tp
+            if rs.get("target_ports", ""):
+                ports_from_plan = rs["target_ports"]
                 break
 
         sorted_steps = _sort_steps_by_speed(raw_steps)
         created = session.save_plan(sorted_steps)
         steps = [
-            {"step_number": s.step_number, "description": s.description, "tool": s.tool}
+            {
+                "step_number": s.step_number,
+                "description": s.description,
+                "tool": s.tool,
+                "target_ports": s.target_ports or "",
+            }
             for s in created
         ]
 
@@ -106,6 +105,13 @@ def run_plan_executor(
     context: dict[str, Any] = {"app_hint": "", "techs": [], "vuln_categories": []}
     if not existing_plan and ports_from_plan:
         context["target_ports"] = ports_from_plan
+    elif existing_plan:
+        # Restore target_ports from persisted plan steps
+        for s in existing_plan:
+            tp = s.get("target_ports", "")
+            if tp:
+                context["target_ports"] = tp
+                break
     all_results: list[dict[str, Any]] = []
     tiers = group_by_tier(steps)
 

@@ -93,16 +93,22 @@ class LLMClient:
         except Exception:
             pass
 
-    def chat(self, message: str, system_prompt: str | None = None) -> str:
-        """Send a chat message and get a response."""
+    def chat(self, message: str, system_prompt: str | None = None, model: str | None = None) -> str:
+        """Send a chat message and get a response.
+
+        Args:
+            message: The user message to send.
+            system_prompt: Optional system prompt.
+            model: Override the default model for this call (e.g. routing_model).
+        """
         if self.provider == "anthropic":
             from .anthropic_impl import chat_anthropic
 
-            return chat_anthropic(self, message, system_prompt)
+            return chat_anthropic(self, message, system_prompt, model=model)
         elif self.provider in ("openai", "openrouter"):
             from .openai_impl import chat_openai
 
-            return chat_openai(self, message, system_prompt)
+            return chat_openai(self, message, system_prompt, model=model)
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
