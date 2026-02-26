@@ -1,10 +1,13 @@
 """Tests for fetch_url and run_command tool executors."""
 
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
+from clawpwn.ai.nli.tool_executors import dispatch_tool
 from clawpwn.ai.nli.tool_executors.command_executor import execute_run_command
 from clawpwn.ai.nli.tool_executors.recon_executors import execute_fetch_url
 
@@ -247,3 +250,32 @@ class TestRunCommandExecutor:
             tmp_path,
         )
         assert str(tmp_path) in result
+
+
+# ---------------------------------------------------------------------------
+# dispatch_tool thread-safety tests
+# ---------------------------------------------------------------------------
+
+
+class TestDispatchToolThreadSafety:
+    """Verify dispatch_tool doesn't corrupt sys.stdout under concurrency."""
+
+    def test_stdout_survives_concurrent_dispatch(self, tmp_path: Path):
+        """Multiple concurrent dispatch_tool calls must not close sys.stdout."""
+        # Use a lightweight executor that sleeps to force overlap
+        import time
+
+        def _slow_executor(params, project_dir):
+            time.sleep(0.05)
+            return "done"
+
+        with patch.dict("clawpwn.ai.nli.tool_executors.TOOL_EXECUTORS", {"_test": _slow_executor}):
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                futures = [pool.submit(dispatch_tool, "_test", {}, tmp_path) for _ in range(8)]
+                for f in as_completed(futures):
+                    assert f.result() == "done"
+
+        # The critical check: sys.stdout must still be writable
+        assert not sys.stdout.closed
+        sys.stdout.write("")  # should not raise
+        sys.stdout.flush()
