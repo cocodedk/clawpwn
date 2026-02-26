@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -367,3 +368,93 @@ class TestFocusedPromptWiring:
         )
         assert "EXHAUSTIVE" not in prompt_used
         assert "SPECIFIC tool or action" in prompt_used
+
+
+# ---------------------------------------------------------------------------
+# Result-query routing: "list ports" → conversational with port data
+# ---------------------------------------------------------------------------
+
+
+class TestResultQueryRouting:
+    """Prove that result-query messages route to agent loop with port context."""
+
+    def test_list_ports_routes_to_agent_loop_not_plan(
+        self,
+        project_dir: Path,
+        mock_env_vars: None,
+        initialized_db: Path,
+        session_manager,
+    ) -> None:
+        """'list all detected ports' → classify_intent returns conversational
+        → agent loop is called (no plan executor) and receives port context."""
+        from clawpwn.ai.nli.agent import ToolUseAgent
+
+        session_manager.create_project(str(project_dir))
+        session_manager.set_target("192.168.1.10")
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "network_scan",
+                    "scanner": "nmap",
+                    "depth": "deep",
+                    "target": "192.168.1.10",
+                    "open_ports": [22, 80, 443, 3306],
+                    "open_ports_count": 4,
+                }
+            ),
+        )
+
+        llm = Mock()
+        llm.provider = "anthropic"
+        # classify_intent calls llm.chat — return "conversational"
+        llm.chat.return_value = "conversational"
+        agent = ToolUseAgent(llm, project_dir)
+
+        with patch(
+            "clawpwn.ai.nli.agent.loop.run_agent_loop",
+            return_value={"success": True, "response": "Ports: 22, 80, 443, 3306"},
+        ) as mock_loop:
+            result = agent.run("list all the detected ports")
+
+        # Agent loop was called, NOT the plan executor
+        mock_loop.assert_called_once()
+        assert result["success"] is True
+
+        # The system prompt passed to the agent loop contains port data
+        call_kwargs = mock_loop.call_args
+        system_prompt = call_kwargs.kwargs.get(
+            "system_prompt", call_kwargs[1].get("system_prompt", "")
+        )
+        assert "22" in system_prompt
+        assert "3306" in system_prompt
+
+    def test_scan_request_still_routes_to_plan_executor(
+        self,
+        project_dir: Path,
+        mock_env_vars: None,
+    ) -> None:
+        """'scan ports 1-1000' must still route to plan executor, not conversational."""
+        from clawpwn.ai.nli.agent import ToolUseAgent
+
+        llm = Mock()
+        llm.provider = "anthropic"
+        llm.chat.return_value = "plan_execute"
+        agent = ToolUseAgent(llm, project_dir)
+
+        with (
+            patch(
+                "clawpwn.ai.nli.agent.loop.run_agent_loop",
+            ) as mock_loop,
+            patch(
+                "clawpwn.ai.nli.agent.plan_executor.run_plan_executor",
+                return_value={"success": True, "response": "Scan started"},
+            ) as mock_plan,
+        ):
+            result = agent.run("scan ports 1-1000")
+
+        mock_plan.assert_called_once()
+        mock_loop.assert_not_called()
+        assert result["success"] is True

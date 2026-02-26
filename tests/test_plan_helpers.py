@@ -78,6 +78,28 @@ class TestClassifyIntent:
         result = classify_intent(llm, "scan", has_pending_plan=False)
         assert result == "conversational"
 
+    def test_result_query_prompt_includes_examples_fresh(self) -> None:
+        """Verify _classify_fresh prompt mentions result-query phrases."""
+        from clawpwn.ai.nli.agent.intent import _classify_fresh
+
+        llm = Mock()
+        llm.chat.return_value = "conversational"
+        _classify_fresh(llm, "list all detected ports")
+        prompt = llm.chat.call_args[0][0]
+        assert "list ports" in prompt
+        assert "show findings" in prompt
+
+    def test_result_query_prompt_includes_examples_pending(self) -> None:
+        """Verify _classify_with_pending prompt mentions result-query phrases."""
+        from clawpwn.ai.nli.agent.intent import _classify_with_pending
+
+        llm = Mock()
+        llm.chat.return_value = "conversational"
+        _classify_with_pending(llm, "what ports are open")
+        prompt = llm.chat.call_args[0][0]
+        assert "list ports" in prompt
+        assert "show findings" in prompt
+
 
 # ---------------------------------------------------------------------------
 # step_to_dispatch_params

@@ -36,7 +36,9 @@ def _classify_with_pending(llm: Any, user_message: str) -> str:
         "pending plan — a new scan, different ports, different tool, "
         "or any request that should replace the current plan\n"
         "- conversational: user is asking a question, wants help, "
-        "or any non-execution request\n\n"
+        "or any non-execution request. Includes queries about previous "
+        "results such as 'list ports', 'show findings', 'what did you find', "
+        "'what ports are open', 'summarize results'\n\n"
         f'Message: "{user_message}"'
     )
     try:
@@ -66,7 +68,9 @@ def _classify_fresh(llm: Any, user_message: str) -> str:
         "asking for help, setting a target, or any non-execution request. "
         "Phrases like 'write the command', 'show me', 'what command', "
         "'how do I', 'explain' are conversational even if they mention "
-        "tools or testing\n\n"
+        "tools or testing. Also includes queries about previous scan "
+        "results: 'list ports', 'show findings', 'what did you find', "
+        "'what ports are open', 'summarize results'\n\n"
         f'Message: "{user_message}"'
     )
     try:
