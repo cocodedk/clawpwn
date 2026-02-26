@@ -10,6 +10,19 @@
   <body>
     <div class="bg-grid"></div>
     <div class="bg-glow"></div>
+
+    <nav class="topnav">
+      <a href="#" class="nav-brand">ClawPwn</a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#autopilot">Autopilot</a>
+        <a href="#commands">Commands</a>
+        <a href="#quickstart">Quick Start</a>
+        <a href="#architecture">Architecture</a>
+        <a href="https://github.com/cocodedk/clawpwn" class="btn primary btn-sm">GitHub</a>
+      </div>
+    </nav>
+
     <main>
       <header class="hero">
         <p class="eyebrow">Cocodedk / Pentest Tool</p>
@@ -18,7 +31,8 @@
         <img class="hero-art" src="assets/claw-key.svg" alt="Intertwined wireframe cubes" />
         <div class="cta-row">
           <a class="btn primary" href="https://github.com/cocodedk/clawpwn">View on GitHub</a>
-          <a class="btn ghost" href="#stack">How It Works</a>
+          <a class="btn ghost" href="#quickstart">Quick Start</a>
+          <a class="btn ghost" href="llms.txt">llms.txt</a>
         </div>
         <div class="stats">
           <div>
@@ -27,52 +41,216 @@
           </div>
           <div>
             <span class="label">Focus</span>
-            <span class="value">Recon → Exploit → Report</span>
+            <span class="value">Recon &rarr; Scan &rarr; Report</span>
           </div>
           <div>
             <span class="label">Storage</span>
-            <span class="value">Local SQLite Projects</span>
+            <span class="value">SQLite + Postgres</span>
+          </div>
+          <div>
+            <span class="label">AI</span>
+            <span class="value">Claude &middot; GPT &middot; OpenRouter</span>
           </div>
         </div>
       </header>
 
-      <section class="panel" id="stack">
-        <h2>Operator Workflow</h2>
-        <p>ClawPwn keeps human intent in the loop. The orchestrator interprets commands, routes tasks to modules, and keeps every decision observable.</p>
+      <!-- Features -->
+      <section class="panel" id="features">
+        <h2>Core Capabilities</h2>
         <div class="grid">
           <div class="card">
             <h3>Recon Grid</h3>
-            <p>Target mapping, service fingerprinting, and anomaly spotting with structured output.</p>
+            <p>Target mapping, service fingerprinting, CVE research, and anomaly spotting with structured output.</p>
           </div>
           <div class="card">
-            <h3>Exploit Chain</h3>
-            <p>Composable modules that log intent, evidence, and remediation context as you move.</p>
+            <h3>Scanner Orchestration</h3>
+            <p>Modular plugin system: nmap, nuclei, sqlmap, nikto, feroxbuster, wpscan, testssl, and more.</p>
+          </div>
+          <div class="card">
+            <h3>AI Agent</h3>
+            <p>LLM-driven tool-use agent plans attacks, executes tiered scans, revises strategy on findings.</p>
+          </div>
+          <div class="card">
+            <h3>Autopilot Mode</h3>
+            <p>Autonomous multi-cycle recon. The agent loops: plan &rarr; scan &rarr; analyze &rarr; decide &rarr; repeat.</p>
+          </div>
+          <div class="card">
+            <h3>Interactive Console</h3>
+            <p>Natural language or CLI input with auto-routing. Prefix <code>!</code> for CLI, <code>?</code> for NLI.</p>
           </div>
           <div class="card">
             <h3>Report Forge</h3>
-            <p>Generate a final narrative with findings, risk posture, and reproducible steps.</p>
+            <p>Generate findings reports in HTML, PDF, JSON, or Markdown with evidence and remediation steps.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Autopilot -->
+      <section class="panel" id="autopilot">
+        <h2>Autopilot Mode</h2>
+        <p>Unattended, multi-cycle reconnaissance and vulnerability detection driven by the LLM agent. No exploitation or credential brute-forcing &mdash; recon only.</p>
+        <div class="code-block">
+          <pre><code># Basic usage (uses active target)
+clawpwn autopilot
+
+# Specify target, limit to 3 cycles and 1 hour
+clawpwn autopilot http://10.0.0.5 --cycles 3 --duration 1.0
+
+# Verbose output with progress details
+clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose</code></pre>
+        </div>
+        <div class="grid grid-2">
+          <div class="card">
+            <h3>How It Works</h3>
+            <ul class="check-list">
+              <li>Each cycle generates a recon plan ordered fastest-first</li>
+              <li>Executes tiered tools: fingerprint, research, web scan, network scan</li>
+              <li>Summarizes results and evaluates new attack surfaces</li>
+              <li>Cheap LLM call decides: continue or stop</li>
+              <li>Stops when coverage is thorough, cycle or time limit reached</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Options</h3>
+            <table class="opt-table">
+              <tr><td><code>--cycles, -c</code></td><td>Max recon cycles (default: 5)</td></tr>
+              <tr><td><code>--duration, -d</code></td><td>Max hours (default: 4.0)</td></tr>
+              <tr><td><code>--scanner, -s</code></td><td>Port scanner (default: naabu)</td></tr>
+              <tr><td><code>--verbose, -v</code></td><td>Show per-step progress</td></tr>
+            </table>
+            <p class="note">Excluded tools: <code>credential_test</code>, <code>run_custom_script</code></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Commands -->
+      <section class="panel" id="commands">
+        <h2>Command Reference</h2>
+        <table class="cmd-table">
+          <thead><tr><th>Command</th><th>Purpose</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><code>init</code></td><td>Initialize project</td><td><code>clawpwn init</code></td></tr>
+            <tr><td><code>target</code></td><td>Set active target</td><td><code>clawpwn target http://10.0.0.5</code></td></tr>
+            <tr><td><code>status</code></td><td>Show target, phase, findings</td><td><code>clawpwn status</code></td></tr>
+            <tr><td><code>scan</code></td><td>Network + web scanning</td><td><code>clawpwn scan --depth deep</code></td></tr>
+            <tr><td><code>discover</code></td><td>Discover live hosts</td><td><code>clawpwn discover --range 192.168.1.0/24</code></td></tr>
+            <tr><td><code>autopilot</code></td><td>Autonomous recon loop</td><td><code>clawpwn autopilot --cycles 3</code></td></tr>
+            <tr><td><code>killchain</code></td><td>AI-guided end-to-end phases</td><td><code>clawpwn killchain --auto</code></td></tr>
+            <tr><td><code>report</code></td><td>Generate report</td><td><code>clawpwn report --format html</code></td></tr>
+            <tr><td><code>logs</code></td><td>Show project logs</td><td><code>clawpwn logs --limit 100</code></td></tr>
+            <tr><td><code>config</code></td><td>Show/edit config</td><td><code>clawpwn config show</code></td></tr>
+            <tr><td><code>objective</code></td><td>Set/show/clear objective</td><td><code>clawpwn objective set "..."</code></td></tr>
+            <tr><td><code>memory</code></td><td>Show/clear project memory</td><td><code>clawpwn memory show</code></td></tr>
+            <tr><td><code>console</code></td><td>Interactive console</td><td><code>clawpwn console</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Quick Start -->
+      <section class="panel" id="quickstart">
+        <h2>Quick Start</h2>
+        <div class="code-block">
+          <pre><code># Install
+./install.sh
+
+# Create project
+mkdir -p ~/pentest/target &amp;&amp; cd ~/pentest/target
+clawpwn init
+
+# Set target and scan
+clawpwn target https://example.com
+clawpwn scan --depth normal
+
+# Or run autonomous recon
+clawpwn autopilot https://example.com --cycles 3
+
+# Open interactive console
+clawpwn console</code></pre>
+        </div>
+      </section>
+
+      <!-- Architecture -->
+      <section class="panel" id="architecture">
+        <h2>Architecture</h2>
+        <div class="grid grid-2">
+          <div>
+            <h3 class="section-h3">Signal Stack</h3>
+            <ul class="stack">
+              <li><span>CLI</span> Typer + Rich terminal UI</li>
+              <li><span>AI Core</span> LLM orchestrator with tool-use agent</li>
+              <li><span>Autopilot</span> Supervisor loop over plan executor</li>
+              <li><span>Modules</span> Scanner plugins, network, credential test</li>
+              <li><span>Storage</span> SQLite per project + Postgres experience DB</li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="section-h3">AI Execution Paths</h3>
+            <ul class="stack">
+              <li><span>Plan Executor</span> Code-driven, 3 LLM calls, tiered parallel</li>
+              <li><span>Agent Loop</span> Conversational, up to 16 tool-use rounds</li>
+              <li><span>Autopilot</span> Multi-cycle supervisor with follow-up decisions</li>
+              <li><span>Routing</span> Intent classification selects the right path</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scanners -->
+      <section class="panel" id="scanners">
+        <h2>Scanner Support</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Network</h3>
+            <p><code>nmap</code> &middot; <code>masscan</code> &middot; <code>rustscan</code> &middot; <code>naabu</code></p>
+          </div>
+          <div class="card">
+            <h3>Web</h3>
+            <p><code>builtin</code> &middot; <code>nuclei</code> &middot; <code>nikto</code> &middot; <code>sqlmap</code> &middot; <code>feroxbuster</code> &middot; <code>ffuf</code> &middot; <code>wpscan</code> &middot; <code>testssl</code> &middot; <code>zap</code></p>
+          </div>
+          <div class="card">
+            <h3>Credentials</h3>
+            <p>Built-in form tester &middot; <code>hydra</code> backend</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Configuration -->
+      <section class="panel" id="config">
+        <h2>Configuration</h2>
+        <div class="code-block">
+          <pre><code>cp .env.example .env</code></pre>
+        </div>
+        <div class="grid grid-2">
+          <div>
+            <h3 class="section-h3">Environment Variables</h3>
+            <table class="opt-table">
+              <tr><td><code>CLAWPWN_LLM_PROVIDER</code></td><td>anthropic, openai, openrouter</td></tr>
+              <tr><td><code>CLAWPWN_LLM_API_KEY</code></td><td>API key for selected provider</td></tr>
+              <tr><td><code>CLAWPWN_LLM_MODEL</code></td><td>Model override</td></tr>
+              <tr><td><code>CLAWPWN_EXPERIENCE_DB_URL</code></td><td>Postgres connection string</td></tr>
+              <tr><td><code>CLAWPWN_CRED_WORDLIST</code></td><td>Path to credential wordlist</td></tr>
+            </table>
+          </div>
+          <div>
+            <h3 class="section-h3">Precedence</h3>
+            <ol class="precedence">
+              <li>Process environment variables</li>
+              <li>Project <code>.clawpwn/.env</code></li>
+              <li>Global <code>~/.clawpwn/config.yml</code></li>
+              <li>Code defaults</li>
+            </ol>
           </div>
         </div>
       </section>
 
       <section class="panel">
-        <h2>Signal Stack</h2>
-        <ul class="stack">
-          <li><span>CLI</span> Typer + Rich terminal UI</li>
-          <li><span>AI Core</span> Orchestrator + LLM adapters</li>
-          <li><span>Modules</span> Scanner, Proxy, Exploit, VulnDB</li>
-          <li><span>Storage</span> SQLite per project</li>
-        </ul>
-      </section>
-
-      <section class="panel">
         <h2>Operational Notes</h2>
-        <p>ClawPwn is intended for authorized security testing only. Always obtain written permission and follow local laws.</p>
+        <p>ClawPwn is intended for <strong>authorized security testing only</strong>. Always obtain written permission and follow local laws. MIT License.</p>
       </section>
 
       <footer class="footer">
         <p>Built for controlled environments. Designed for clarity.</p>
-        <p>Created by Babak Bandpey · <a href="https://cocode.dk">cocode.dk</a></p>
+        <p>Created by Babak Bandpey &middot; <a href="https://cocode.dk">cocode.dk</a></p>
       </footer>
     </main>
     <div class="scanlines"></div>
