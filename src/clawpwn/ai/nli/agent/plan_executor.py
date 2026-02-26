@@ -9,6 +9,7 @@ from clawpwn.ai.nli.tool_executors.plan_executors import _sort_steps_by_speed
 
 from .plan_helpers import build_plan_prompt, is_llm_dependent_step, needs_revision
 from .plan_llm_calls import generate_plan, revise_plan, summarize_results
+from .plan_optimizers import prune_empty_research, should_skip_remaining, tier_found_nothing
 from .plan_runner import (
     enrich_context,
     execute_single_step,
@@ -17,6 +18,7 @@ from .plan_runner import (
     get_session_and_target,
     group_by_tier,
     revision_reason,
+    steps_to_dicts,
 )
 from .result_builder import build_result
 
@@ -54,16 +56,13 @@ def run_plan_executor(
     existing_plan = get_existing_plan(session)
     if existing_plan and replace_plan:
         _emit("New request — replacing previous plan...")
-        progress_updates.append("Cleared stale plan for new request")
         session.clear_plan()
         existing_plan = None
     if existing_plan:
         _emit("Resuming existing plan...")
-        progress_updates.append("Resuming existing plan")
-        steps = existing_plan
+        steps, ports_from_plan = existing_plan, ""
     else:
         _emit("Generating attack plan...")
-        progress_updates.append("Generating attack plan")
         plan_prompt = build_plan_prompt(system_prompt, user_message, project_dir)
         raw_steps = generate_plan(llm, plan_prompt, user_message, tools)
         if raw_steps is None:
@@ -79,23 +78,17 @@ def run_plan_executor(
                 debug=debug,
             )
 
+        # Prune research steps with no service context
+        init_ctx: dict[str, Any] = {"app_hint": "", "techs": [], "vuln_categories": []}
+        raw_steps = prune_empty_research(raw_steps, init_ctx)
+
         ports_from_plan = ""
         for rs in raw_steps:
             if rs.get("target_ports", ""):
                 ports_from_plan = rs["target_ports"]
                 break
 
-        created = session.save_plan(_sort_steps_by_speed(raw_steps))
-        steps = [
-            {
-                "step_number": s.step_number,
-                "description": s.description,
-                "tool": s.tool,
-                "target_ports": s.target_ports or "",
-            }
-            for s in created
-        ]
-
+        steps = steps_to_dicts(session.save_plan(_sort_steps_by_speed(raw_steps)))
         _emit(msg := f"Plan created ({len(steps)} steps, ordered fastest-first)")
         progress_updates.append(msg)
 
@@ -104,11 +97,9 @@ def run_plan_executor(
     if not existing_plan and ports_from_plan:
         context["target_ports"] = ports_from_plan
     elif existing_plan:
-        # Restore target_ports from persisted plan steps
         for s in existing_plan:
-            tp = s.get("target_ports", "")
-            if tp:
-                context["target_ports"] = tp
+            if s.get("target_ports", ""):
+                context["target_ports"] = s["target_ports"]
                 break
     all_results: list[dict[str, Any]] = []
     tiers = group_by_tier(steps)
@@ -153,6 +144,16 @@ def run_plan_executor(
 
         enrich_context(context, tier_results)
 
+        # Early-exit: skip deeper tiers when nothing was found
+        if tier_found_nothing(tier_results):
+            completed_tools = {r["tool"].split(":")[0] for r in all_results}
+            remaining = {t: tiers[t] for t in tiers if t > tier_num}
+            if remaining and should_skip_remaining(completed_tools, remaining):
+                msg = "Skipping deeper scans — no attack surface found."
+                _emit(msg)
+                progress_updates.append(msg)
+                break
+
         if needs_revision(tier_results):
             _emit("Plan revision needed based on results...")
             progress_updates.append("Revising plan")
@@ -170,16 +171,7 @@ def run_plan_executor(
                 reason,
             )
             if revised:
-                created = session.save_plan(_sort_steps_by_speed(revised))
-                new_steps = [
-                    {
-                        "step_number": s.step_number,
-                        "description": s.description,
-                        "tool": s.tool,
-                        "target_ports": s.target_ports or "",
-                    }
-                    for s in created
-                ]
+                new_steps = steps_to_dicts(session.save_plan(_sort_steps_by_speed(revised)))
                 tiers = group_by_tier(new_steps)
                 _emit(f"Plan revised ({len(new_steps)} steps)")
                 progress_updates.append(f"Plan revised ({len(new_steps)} steps)")
