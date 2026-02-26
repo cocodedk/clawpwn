@@ -152,6 +152,167 @@ class TestToolExecutors:
         assert "Latest script artifact:" in result
         assert str(script_path) in result
 
+    def test_check_status_includes_discovered_ports(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        import json
+
+        session_manager.create_project(str(project_dir))
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "network_scan",
+                    "target": "192.168.1.10",
+                    "open_ports": [22, 80, 443],
+                    "open_ports_count": 3,
+                }
+            ),
+        )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Discovered ports:" in result
+        assert "22" in result
+        assert "80" in result
+        assert "443" in result
+
+    def test_check_status_no_ports_when_only_web_scans(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """Only web_scan logs exist — no 'Discovered ports' line."""
+        import json
+
+        session_manager.create_project(str(project_dir))
+        session_manager.add_log(
+            message="web_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "web_scan",
+                    "target": "http://example.com",
+                    "findings_count": 2,
+                }
+            ),
+        )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Discovered ports" not in result
+
+    def test_check_status_no_ports_when_no_logs(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """No scan logs at all — no 'Discovered ports' line."""
+        session_manager.create_project(str(project_dir))
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Discovered ports" not in result
+
+    def test_check_status_survives_malformed_log_details(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """Malformed JSON in log details doesn't crash check_status."""
+        session_manager.create_project(str(project_dir))
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details="NOT VALID JSON {{{",
+        )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Target:" in result
+        assert "Discovered ports" not in result
+
+    def test_check_status_deduplicates_ports_across_scans(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """Ports from multiple scans are deduplicated."""
+        import json
+
+        session_manager.create_project(str(project_dir))
+        for ports in ([22, 80], [80, 443]):
+            session_manager.add_log(
+                message="network_scan completed",
+                level="INFO",
+                phase="scan",
+                details=json.dumps(
+                    {
+                        "tool": "network_scan",
+                        "target": "192.168.1.10",
+                        "open_ports": ports,
+                        "open_ports_count": len(ports),
+                    }
+                ),
+            )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Discovered ports:" in result
+        # Port 80 should appear only once
+        ports_line = [line for line in result.split("\n") if "Discovered ports" in line][0]
+        assert ports_line.count("80") == 1
+
+    def test_check_status_empty_open_ports_list(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """Network scan with open_ports: [] — no 'Discovered ports' line."""
+        import json
+
+        session_manager.create_project(str(project_dir))
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "network_scan",
+                    "target": "192.168.1.10",
+                    "open_ports": [],
+                    "open_ports_count": 0,
+                }
+            ),
+        )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Discovered ports" not in result
+
+    def test_check_status_survives_non_dict_json_payload(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """JSON that parses to a list (not dict) doesn't crash."""
+        import json
+
+        session_manager.create_project(str(project_dir))
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps([22, 80, 443]),
+        )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Target:" in result
+        assert "Discovered ports" not in result
+
+    def test_check_status_survives_non_list_open_ports(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """open_ports as a string instead of list doesn't crash."""
+        import json
+
+        session_manager.create_project(str(project_dir))
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "network_scan",
+                    "target": "192.168.1.10",
+                    "open_ports": "22,80,443",
+                    "open_ports_count": 3,
+                }
+            ),
+        )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Target:" in result
+        assert "Discovered ports" not in result
+
 
 # ---------------------------------------------------------------------------
 # Availability helpers

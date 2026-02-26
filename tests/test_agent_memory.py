@@ -290,6 +290,120 @@ class TestProjectContextEnrichment:
         assert "http://example.com" in context
         assert "0 findings" in context
 
+    def test_context_includes_port_list_for_network_scan(self, temp_dir: Path):
+        """Test that network_scan context includes actual port numbers."""
+        from clawpwn.db.init import init_db
+        from clawpwn.modules.session import SessionManager
+
+        db_path = temp_dir / ".clawpwn" / "clawpwn.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        init_db(db_path)
+
+        session_manager = SessionManager(db_path)
+        session_manager.create_project(str(temp_dir))
+        session_manager.set_target("192.168.1.10")
+
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "network_scan",
+                    "scanner": "nmap",
+                    "depth": "deep",
+                    "target": "192.168.1.10",
+                    "open_ports": [22, 80, 443, 8080],
+                    "open_ports_count": 4,
+                }
+            ),
+        )
+
+        from clawpwn.ai.nli.agent.context import get_project_context
+
+        context = get_project_context(temp_dir)
+
+        assert "Past actions" in context
+        assert "4 ports" in context
+        assert "[22, 80, 443, 8080]" in context
+
+    def test_context_network_scan_no_open_ports_key(self, temp_dir: Path):
+        """Network scan without open_ports key — no bracket suffix."""
+        from clawpwn.db.init import init_db
+        from clawpwn.modules.session import SessionManager
+
+        db_path = temp_dir / ".clawpwn" / "clawpwn.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        init_db(db_path)
+
+        session_manager = SessionManager(db_path)
+        session_manager.create_project(str(temp_dir))
+        session_manager.set_target("192.168.1.10")
+
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "network_scan",
+                    "scanner": "nmap",
+                    "depth": "deep",
+                    "target": "192.168.1.10",
+                    "open_ports_count": 3,
+                }
+            ),
+        )
+
+        from clawpwn.ai.nli.agent.context import get_project_context
+
+        context = get_project_context(temp_dir)
+
+        assert "3 ports" in context
+        # The port bracket suffix (e.g. "[22, 80, 443]") should NOT appear
+        # but the time-ago suffix "[0m ago]" is expected — check between "ports" and "["
+        ports_line = [line for line in context.split("\n") if "3 ports" in line][0]
+        # After "3 ports" there should be no comma-separated port list in brackets
+        after_ports = ports_line.split("3 ports")[1]
+        assert "[22" not in after_ports
+        assert "[80" not in after_ports
+
+    def test_context_network_scan_empty_open_ports(self, temp_dir: Path):
+        """Network scan with open_ports: [] — no bracket suffix."""
+        from clawpwn.db.init import init_db
+        from clawpwn.modules.session import SessionManager
+
+        db_path = temp_dir / ".clawpwn" / "clawpwn.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        init_db(db_path)
+
+        session_manager = SessionManager(db_path)
+        session_manager.create_project(str(temp_dir))
+        session_manager.set_target("192.168.1.10")
+
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "network_scan",
+                    "scanner": "nmap",
+                    "depth": "deep",
+                    "target": "192.168.1.10",
+                    "open_ports": [],
+                    "open_ports_count": 0,
+                }
+            ),
+        )
+
+        from clawpwn.ai.nli.agent.context import get_project_context
+
+        context = get_project_context(temp_dir)
+
+        assert "0 ports" in context
+        assert "[]" not in context
+
     def test_context_includes_findings_summary(self, temp_dir: Path):
         """Test that _get_project_context includes findings grouped by type."""
         from clawpwn.db.init import init_db

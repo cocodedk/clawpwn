@@ -65,9 +65,13 @@ def get_project_context(project_dir: Path) -> str:
                         scanner = details.get("scanner", "nmap")
                         depth = details.get("depth", "deep")
                         ports_count = details.get("open_ports_count", 0)
+                        open_ports = details.get("open_ports", [])
                         action_str = (
                             f"network_scan({scanner}, {depth}) on {target} -> {ports_count} ports"
                         )
+                        if open_ports:
+                            port_list = ", ".join(str(p) for p in open_ports[:20])
+                            action_str += f" [{port_list}]"
                     elif tool_type == "discover_hosts":
                         hosts_count = details.get("hosts_count", 0)
                         action_str = f"discover_hosts({target}) -> {hosts_count} hosts"

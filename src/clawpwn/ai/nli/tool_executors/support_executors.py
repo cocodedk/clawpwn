@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,9 @@ def execute_check_status(_params: dict[str, Any], project_dir: Path) -> str:
     latest_script = _latest_custom_script(project_dir)
     if latest_script is not None:
         status_text += f"\nLatest script artifact: {latest_script}"
+    port_info = _get_discovered_ports(session)
+    if port_info:
+        status_text += f"\n{port_info}"
     return status_text
 
 
@@ -121,6 +125,31 @@ def execute_list_recent_artifacts(params: dict[str, Any], project_dir: Path) -> 
         ts = datetime.fromtimestamp(mtime).isoformat(timespec="seconds")
         lines.append(f"- [{category}] {file_path} (updated {ts})")
     return "\n".join(lines)
+
+
+def _get_discovered_ports(session: Any) -> str:
+    """Extract discovered port numbers from recent network scan logs."""
+    scan_logs = session.get_scan_logs(limit=10)
+    all_ports: list[str] = []
+    for log in scan_logs:
+        try:
+            details = json.loads(log.details) if log.details else {}
+            if not isinstance(details, dict):
+                continue
+            if details.get("tool") != "network_scan":
+                continue
+            open_ports = details.get("open_ports", [])
+            if not isinstance(open_ports, list):
+                continue
+            for p in open_ports:
+                ps = str(p)
+                if ps not in all_ports:
+                    all_ports.append(ps)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            continue
+    if not all_ports:
+        return ""
+    return f"Discovered ports: {', '.join(all_ports[:20])}"
 
 
 def _latest_custom_script(project_dir: Path) -> Path | None:
