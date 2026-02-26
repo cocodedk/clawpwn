@@ -272,6 +272,47 @@ class TestToolExecutors:
         result = dispatch_tool("check_status", {}, project_dir)
         assert "Discovered ports" not in result
 
+    def test_check_status_survives_non_dict_json_payload(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """JSON that parses to a list (not dict) doesn't crash."""
+        import json
+
+        session_manager.create_project(str(project_dir))
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps([22, 80, 443]),
+        )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Target:" in result
+        assert "Discovered ports" not in result
+
+    def test_check_status_survives_non_list_open_ports(
+        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+    ) -> None:
+        """open_ports as a string instead of list doesn't crash."""
+        import json
+
+        session_manager.create_project(str(project_dir))
+        session_manager.add_log(
+            message="network_scan completed",
+            level="INFO",
+            phase="scan",
+            details=json.dumps(
+                {
+                    "tool": "network_scan",
+                    "target": "192.168.1.10",
+                    "open_ports": "22,80,443",
+                    "open_ports_count": 3,
+                }
+            ),
+        )
+        result = dispatch_tool("check_status", {}, project_dir)
+        assert "Target:" in result
+        assert "Discovered ports" not in result
+
 
 # ---------------------------------------------------------------------------
 # Availability helpers

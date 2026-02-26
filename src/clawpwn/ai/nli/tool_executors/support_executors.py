@@ -134,9 +134,13 @@ def _get_discovered_ports(session: Any) -> str:
     for log in scan_logs:
         try:
             details = json.loads(log.details) if log.details else {}
+            if not isinstance(details, dict):
+                continue
             if details.get("tool") != "network_scan":
                 continue
             open_ports = details.get("open_ports", [])
+            if not isinstance(open_ports, list):
+                continue
             for p in open_ports:
                 ps = str(p)
                 if ps not in all_ports:
