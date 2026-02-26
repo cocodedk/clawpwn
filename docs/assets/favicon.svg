@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Top face -->
+  <polygon points="32,8 56,20 32,32 8,20" fill="#7dffad" stroke="#0a0a0a" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Left face -->
+  <polygon points="8,20 32,32 32,56 8,44" fill="#4dcc82" stroke="#0a0a0a" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Right face -->
+  <polygon points="56,20 32,32 32,56 56,44" fill="#2a9958" stroke="#0a0a0a" stroke-width="2" stroke-linejoin="round"/>
+</svg>
