@@ -53,7 +53,7 @@ class NaabuScanner:
         if not verbose:
             cmd.append("-silent")
 
-        if verbose:
+        if verbose and not on_port:
             print(f"[verbose] Naabu command: {' '.join(cmd)}")
 
         effective_timeout = (
@@ -116,7 +116,8 @@ class NaabuScanner:
         async def _read_stderr():
             assert process.stderr is not None
             async for raw in process.stderr:
-                print(f"[naabu] {raw.decode().rstrip()}")
+                if not on_port:
+                    print(f"[naabu] {raw.decode().rstrip()}")
 
         async def _read_stdout():
             assert process.stdout is not None
@@ -142,7 +143,8 @@ class NaabuScanner:
         except TimeoutError:
             await self._kill(process, started, timeout)
         elapsed = time.perf_counter() - started
-        print(f"[verbose] Naabu exit code: {process.returncode} ({elapsed:.2f}s)")
+        if not on_port:
+            print(f"[verbose] Naabu exit code: {process.returncode} ({elapsed:.2f}s)")
 
         if process.returncode != 0:
             raise RuntimeError(f"Naabu scan failed (exit {process.returncode})")
