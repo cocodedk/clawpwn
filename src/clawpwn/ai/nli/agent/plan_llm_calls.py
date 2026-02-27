@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .plan_optimizers import all_results_empty
 from .prompt import ROUTING_MAX_TOKENS, THINKING_BUDGET
 from .result_builder import split_content
 
@@ -141,15 +142,24 @@ def summarize_results(
         for r in all_results
     )
 
-    prompt = (
-        f"Target: {target}\n\n"
-        f"All completed scan/attack step results:\n{results_text}\n\n"
-        "Provide a concise penetration test summary:\n"
-        "1. Critical/high findings with exploitation details\n"
-        "2. Medium/low findings\n"
-        "3. Categories tested with no findings\n"
-        "4. Recommended manual follow-up steps"
-    )
+    if all_results_empty(all_results):
+        prompt = (
+            f"Target: {target}\n\n"
+            f"All scans completed with no findings:\n{results_text}\n\n"
+            "Provide a brief summary (2-3 sentences): what was tested, "
+            "that nothing was found, and 2-3 likely reasons why (host down, "
+            "firewalled, wrong target, etc.). Do NOT list manual commands."
+        )
+    else:
+        prompt = (
+            f"Target: {target}\n\n"
+            f"All completed scan/attack step results:\n{results_text}\n\n"
+            "Provide a concise penetration test summary:\n"
+            "1. Critical/high findings with exploitation details\n"
+            "2. Medium/low findings\n"
+            "3. Categories tested with no findings\n"
+            "4. Recommended manual follow-up steps"
+        )
 
     try:
         return llm.chat(prompt, system_prompt)

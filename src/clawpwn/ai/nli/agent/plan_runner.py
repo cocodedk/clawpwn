@@ -104,7 +104,7 @@ def execute_tier_parallel(
     """Execute steps in parallel within a tier."""
     if not steps:
         return []
-    results: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []  # noqa: C408
 
     def _run_step(step: dict[str, Any]) -> dict[str, Any]:
         tn, params = step_to_dispatch_params(step["tool"], target, context)
@@ -128,24 +128,17 @@ def execute_tier_parallel(
                 try:
                     result = future.result()
                 except Exception as exc:
-                    result = _step_result(
-                        {"step_number": step_num, "description": "", "tool": ""},
-                        "",
-                        {},
-                        str(exc),
-                        failed=True,
-                    )
+                    stub = {"step_number": step_num, "description": "", "tool": ""}
+                    result = _step_result(stub, "", {}, str(exc), failed=True)
                 results.append(result)
                 session.update_step_status(step_num, "done", result["result_summary"])
-                done_str = f"  ✓ Step {step_num} done"
-                emit(done_str)
-                progress.append(done_str)
+                emit(f"  ✓ Step {step_num} done")
+                progress.append(f"  ✓ Step {step_num} done")
         except KeyboardInterrupt:
             for f in futures:
                 f.cancel()
             pool.shutdown(wait=False, cancel_futures=True)
-            # Reset in-progress steps to pending so they can be resumed.
-            for sn in futures.values():
+            for sn in futures.values():  # Reset to pending for resume
                 try:
                     session.update_step_status(sn, "pending")
                 except Exception:
@@ -167,8 +160,9 @@ def execute_single_step(
     """Execute a single step sequentially."""
     step_num = step["step_number"]
     tool_name, params = step_to_dispatch_params(step["tool"], target, context)
-    emit(f"  Step {step_num}: {format_tool_call(tool_name, params)}")
-    progress.append(f"Step {step_num}: {format_tool_call(tool_name, params)}")
+    call_str = format_tool_call(tool_name, params)
+    emit(f"  Step {step_num}: {call_str}")
+    progress.append(f"Step {step_num}: {call_str}")
     session.update_step_status(step_num, "in_progress")
     try:
         rt = dispatch_tool(tool_name, params, project_dir)
@@ -181,6 +175,18 @@ def execute_single_step(
     return result
 
 
+def steps_to_dicts(created: list) -> list[dict[str, Any]]:
+    return [
+        {
+            "step_number": s.step_number,
+            "description": s.description,
+            "tool": s.tool,
+            "target_ports": s.target_ports or "",
+        }
+        for s in created
+    ]
+
+
 # Re-export for backward compatibility
 __all__ = [
     "enrich_context",
@@ -190,4 +196,5 @@ __all__ = [
     "get_session_and_target",
     "group_by_tier",
     "revision_reason",
+    "steps_to_dicts",
 ]

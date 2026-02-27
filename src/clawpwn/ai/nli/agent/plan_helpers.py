@@ -97,9 +97,23 @@ def step_to_dispatch_params(
             )
         return ("research_vulnerabilities", {"service": target, "version": ""})
 
+    if step_tool == "fetch_url":
+        return ("fetch_url", {"url": target})
+
     if step_tool == "run_custom_script":
         script = context.get("script", "")
         return ("run_custom_script", {"script": script, "target": target})
+
+    if step_tool == "run_command":
+        command = context.get("command", "")
+        return (
+            "run_command",
+            {
+                "command": command,
+                "description": context.get("description", ""),
+                "user_approved": False,
+            },
+        )
 
     if step_tool == "suggest_tools":
         return ("suggest_tools", {"target": target})
@@ -131,7 +145,7 @@ def needs_revision(tier_results: list[dict[str, Any]]) -> bool:
 
 def is_llm_dependent_step(step_tool: str) -> bool:
     """Return True for steps that need LLM-generated params."""
-    return step_tool in ("run_custom_script", "suggest_tools")
+    return step_tool in ("run_custom_script", "run_command", "suggest_tools")
 
 
 def is_focused_request(user_message: str) -> bool:

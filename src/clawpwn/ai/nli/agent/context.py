@@ -35,6 +35,7 @@ def get_project_context(project_dir: Path) -> str:
             )
 
         # Recent scan action history
+        current_target = state.target  # Save before loop reassigns 'target'
         scan_logs = session.get_scan_logs(limit=10)
         if scan_logs:
             parts.append("\nPast actions (recent first):")
@@ -44,6 +45,10 @@ def get_project_context(project_dir: Path) -> str:
                     details = json.loads(log.details) if log.details else {}
                     tool_type = details.get("tool", "unknown")
                     target = details.get("target", details.get("network", ""))
+
+                    # Skip logs from a different target
+                    if current_target and target and target != current_target:
+                        continue
 
                     # Format based on tool type
                     if tool_type == "web_scan":

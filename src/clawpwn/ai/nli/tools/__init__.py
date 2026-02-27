@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from .attack_tools import CREDENTIAL_TEST_TOOL, RUN_CUSTOM_SCRIPT_TOOL
+from .attack_tools import CREDENTIAL_TEST_TOOL, RUN_COMMAND_TOOL, RUN_CUSTOM_SCRIPT_TOOL
 from .plan_tools import SAVE_PLAN_TOOL, UPDATE_PLAN_STEP_TOOL
-from .recon_tools import FINGERPRINT_TARGET_TOOL, WEB_SEARCH_TOOL
+from .recon_tools import FETCH_URL_TOOL, FINGERPRINT_TARGET_TOOL, WEB_SEARCH_TOOL
 from .scan_tools import DISCOVER_HOSTS_TOOL, NETWORK_SCAN_TOOL, WEB_SCAN_TOOL
 from .support_tools import (
     CHECK_AVAILABLE_TOOLS_TOOL,
@@ -22,10 +22,12 @@ __all__ = [
     "CREDENTIAL_TEST_TOOL",
     "DISCOVER_HOSTS_TOOL",
     "FAST_PATH_TOOLS",
+    "FETCH_URL_TOOL",
     "FINGERPRINT_TARGET_TOOL",
     "LIST_RECENT_ARTIFACTS_TOOL",
     "NETWORK_SCAN_TOOL",
     "RESEARCH_VULNERABILITIES_TOOL",
+    "RUN_COMMAND_TOOL",
     "RUN_CUSTOM_SCRIPT_TOOL",
     "SAVE_PLAN_TOOL",
     "SET_TARGET_TOOL",
@@ -53,8 +55,10 @@ def get_all_tools() -> list[dict[str, Any]]:
         SUGGEST_TOOLS_TOOL,
         WEB_SEARCH_TOOL,
         FINGERPRINT_TARGET_TOOL,
+        FETCH_URL_TOOL,
         CREDENTIAL_TEST_TOOL,
         RUN_CUSTOM_SCRIPT_TOOL,
+        RUN_COMMAND_TOOL,
         SAVE_PLAN_TOOL,
         UPDATE_PLAN_STEP_TOOL,
     ]

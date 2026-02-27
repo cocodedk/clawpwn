@@ -48,7 +48,7 @@ class TestRunPlanExecutor:
         session_manager.set_target("http://target/phpmyadmin/")
 
         llm = Mock()
-        llm.model = "claude-sonnet-4-5-20250929"
+        llm.model = "claude-sonnet-4-6"
 
         plan_response = _make_response(
             [
@@ -118,7 +118,7 @@ class TestRunPlanExecutor:
         session_manager.set_target("http://target/")
 
         llm = Mock()
-        llm.model = "claude-sonnet-4-5-20250929"
+        llm.model = "claude-sonnet-4-6"
 
         text_response = SimpleNamespace(
             content=[_make_text_block("I'll scan the target")],
@@ -172,7 +172,7 @@ class TestResumeFromPending:
         session_manager.update_step_status(1, "done", "Apache/PHP detected")
 
         llm = Mock()
-        llm.model = "claude-sonnet-4-5-20250929"
+        llm.model = "claude-sonnet-4-6"
         llm.chat = Mock(return_value="Summary: resumed and completed")
 
         with patch(
@@ -214,7 +214,7 @@ class TestResumeFromPending:
         session_manager.update_step_status(1, "done", "Apache detected")
 
         llm = Mock()
-        llm.model = "claude-sonnet-4-5-20250929"
+        llm.model = "claude-sonnet-4-6"
 
         plan_response = _make_response(
             [
@@ -331,7 +331,7 @@ class TestFocusedPromptWiring:
         session_manager.set_target("192.168.1.10")
 
         llm = Mock()
-        llm.model = "claude-sonnet-4-5-20250929"
+        llm.model = "claude-sonnet-4-6"
 
         plan_response = _make_response(
             [

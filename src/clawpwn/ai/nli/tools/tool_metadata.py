@@ -45,6 +45,7 @@ TOOL_PROFILES: dict[str, ToolProfile] = {
     "suggest_tools": ToolProfile(1, 1, 1, "fast"),
     "save_plan": ToolProfile(1, 10, 1, "fast"),
     "update_plan_step": ToolProfile(1, 10, 1, "fast"),
+    "fetch_url": ToolProfile(1, 9, 5, "fast"),
     # Credential/wordlist tests: high ROI — if creds work, skip expensive scans
     "credential_test": ToolProfile(1, 8, 15, "fast"),
     "credential_test:hydra": ToolProfile(1, 8, 30, "fast"),
@@ -62,6 +63,7 @@ TOOL_PROFILES: dict[str, ToolProfile] = {
     "web_scan:zap": ToolProfile(3, 3, 900, "slow"),
     "network_scan:deep": ToolProfile(3, 5, 600, "slow"),
     "run_custom_script": ToolProfile(3, 2, 60, "slow"),
+    "run_command": ToolProfile(3, 2, 60, "slow"),
 }
 
 # Fallback for unknown tools
@@ -84,9 +86,9 @@ def format_speed_table() -> str:
     """Build a compact speed reference for the system prompt."""
     lines = [
         "TOOL SPEED REFERENCE (order your plan fastest-first):",
-        "  FAST (~seconds, HIGH ROI): fingerprint_target, web_search, research_vulnerabilities,",
+        "  FAST (~seconds, HIGH ROI): fingerprint_target, fetch_url, web_search, research_vulnerabilities,",
         "    credential_test (default creds, hydra wordlist) — if creds work, skip expensive scans!",
         "  MEDIUM (~1-3 min): builtin scanner, nikto, nuclei, network_scan quick, discover_hosts",
-        "  SLOW (~5-15 min): sqlmap deep, wpscan, testssl, feroxbuster, ffuf, zap, network_scan deep",
+        "  SLOW (~5-15 min): sqlmap, wpscan, testssl, feroxbuster, ffuf, zap, network_scan deep, run_command",
     ]
     return "\n".join(lines)

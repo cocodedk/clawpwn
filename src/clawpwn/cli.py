@@ -19,6 +19,7 @@ from .cli_commands.autopilot_command import autopilot
 from .cli_commands.config_command import config
 from .cli_commands.console_command import console_cmd, interactive
 from .cli_commands.discover_command import discover
+from .cli_commands.doctor_command import doctor
 from .cli_commands.experience_command import experience
 from .cli_commands.killchain_command import killchain
 from .cli_commands.memory_command import memory, objective
@@ -40,6 +41,7 @@ __all__ = [
     "create_global_config",
     "create_project_config_template",
     "discover",
+    "doctor",
     "ensure_project_storage_dir",
     "experience",
     "get_project_db_path",

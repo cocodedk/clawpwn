@@ -19,8 +19,9 @@ from .availability import (
     execute_suggest_tools,
     format_availability_report,
 )
+from .command_executor import execute_run_command
 from .plan_executors import execute_save_plan, execute_update_plan_step
-from .recon_executors import execute_fingerprint_target, execute_web_search
+from .recon_executors import execute_fetch_url, execute_fingerprint_target, execute_web_search
 from .scan_executors import (
     execute_discover_hosts,
     execute_network_scan,
@@ -42,11 +43,13 @@ __all__ = [
     "execute_check_available_tools",
     "execute_check_status",
     "execute_credential_test",
+    "execute_fetch_url",
     "execute_discover_hosts",
     "execute_fingerprint_target",
     "execute_list_recent_artifacts",
     "execute_network_scan",
     "execute_research_vulnerabilities",
+    "execute_run_command",
     "execute_run_custom_script",
     "execute_save_plan",
     "execute_set_target",
@@ -75,20 +78,13 @@ TOOL_EXECUTORS: dict[str, Any] = {
     "suggest_tools": execute_suggest_tools,
     "web_search": execute_web_search,
     "fingerprint_target": execute_fingerprint_target,
+    "fetch_url": execute_fetch_url,
     "credential_test": execute_credential_test,
     "run_custom_script": execute_run_custom_script,
+    "run_command": execute_run_command,
     "save_plan": execute_save_plan,
     "update_plan_step": execute_update_plan_step,
 }
-
-
-def _run_quiet(executor: Any, params: dict[str, Any], project_dir: Path) -> str:
-    """Run a tool executor with stdout suppressed to hide noisy print() calls."""
-    import contextlib
-    import os
-
-    with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
-        return executor(params, project_dir)
 
 
 def dispatch_tool(name: str, params: dict[str, Any], project_dir: Path) -> str:
@@ -96,6 +92,11 @@ def dispatch_tool(name: str, params: dict[str, Any], project_dir: Path) -> str:
 
     Unknown tool names and execution errors are returned as error text
     (not raised) so Claude can react gracefully.
+
+    Note: stdout is NOT redirected during execution.  An earlier
+    ``_run_quiet()`` wrapper used ``contextlib.redirect_stdout`` to suppress
+    noisy ``print()`` calls, but it corrupted ``sys.stdout`` when the plan
+    executor ran multiple tools concurrently via ``ThreadPoolExecutor``.
     """
     import time
 
@@ -111,10 +112,7 @@ def dispatch_tool(name: str, params: dict[str, Any], project_dir: Path) -> str:
         result = f"Unknown tool: {name}"
     else:
         try:
-            if is_debug_enabled():
-                result = executor(params, project_dir)
-            else:
-                result = _run_quiet(executor, params, project_dir)
+            result = executor(params, project_dir)
         except Exception as exc:
             result = enrich_missing_tool_error(f"Tool '{name}' failed: {exc}")
 

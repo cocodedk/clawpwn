@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 from clawpwn.utils.async_utils import safe_async_run
+
+_MAX_BODY_BYTES = 50_000
 
 
 def execute_web_search(params: dict[str, Any], _project_dir: Path) -> str:
@@ -73,3 +76,47 @@ def execute_fingerprint_target(params: dict[str, Any], _project_dir: Path) -> st
         output.append(f"\nError during fingerprinting: {result.error}")
 
     return "\n".join(output)
+
+
+async def _fetch_url(
+    url: str,
+    method: str,
+    headers: dict[str, str] | None,
+    body: str | None,
+) -> str:
+    """Fetch a URL and return formatted response text."""
+    from clawpwn.tools.http.client import HTTPClient
+
+    data = None
+    if body:
+        try:
+            data = json.loads(body)
+        except (json.JSONDecodeError, TypeError):
+            data = {"_raw": body}
+
+    async with HTTPClient() as client:
+        resp = await client.request(method, url, headers=headers, data=data)
+
+    content_type = resp.content_type or "unknown"
+    response_body = resp.body
+    truncated = ""
+    if len(response_body) > _MAX_BODY_BYTES:
+        response_body = response_body[:_MAX_BODY_BYTES]
+        truncated = "\n[Truncated — response exceeded 50 KB]"
+
+    return (
+        f"HTTP {resp.status_code} {url}\nContent-Type: {content_type}\n\n{response_body}{truncated}"
+    )
+
+
+def execute_fetch_url(params: dict[str, Any], _project_dir: Path) -> str:
+    """Fetch a URL and return the raw response body."""
+    url = params.get("url", "")
+    if not url:
+        return "Error: url parameter is required."
+
+    method = params.get("method", "GET").upper()
+    headers = params.get("headers")
+    body = params.get("body")
+
+    return safe_async_run(_fetch_url(url, method, headers, body))

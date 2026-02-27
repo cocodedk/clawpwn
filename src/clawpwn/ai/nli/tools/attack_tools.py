@@ -89,3 +89,39 @@ RUN_CUSTOM_SCRIPT_TOOL: dict[str, Any] = {
         "required": ["script", "description", "user_approved"],
     },
 }
+
+RUN_COMMAND_TOOL: dict[str, Any] = {
+    "name": "run_command",
+    "description": (
+        "Execute a shell command directly (e.g. aws, curl, openssl, netcat). "
+        "Use this when you need to run CLI tools that ClawPwn doesn't have a "
+        "dedicated plugin for. The command runs in a subprocess with the project "
+        "directory as working directory. Output is captured and returned. "
+        "Requires explicit user approval before execution."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "command": {
+                "type": "string",
+                "description": "Shell command to execute (e.g. 'aws sns subscribe ...').",
+            },
+            "description": {
+                "type": "string",
+                "description": "Brief description of what this command does.",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Timeout in seconds. Default 30.",
+            },
+            "user_approved": {
+                "type": "boolean",
+                "description": (
+                    "Explicit user approval flag. Must be true only after the user clearly "
+                    "approves running this command."
+                ),
+            },
+        },
+        "required": ["command", "description", "user_approved"],
+    },
+}

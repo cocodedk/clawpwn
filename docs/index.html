@@ -61,7 +61,7 @@
         <div class="grid">
           <div class="card">
             <h3>Recon Grid</h3>
-            <p>Target mapping, service fingerprinting, CVE research, and anomaly spotting with structured output.</p>
+            <p>Target mapping, service fingerprinting, raw content fetching, CVE research, and anomaly spotting with structured output.</p>
           </div>
           <div class="card">
             <h3>Scanner Orchestration</h3>
@@ -80,8 +80,16 @@
             <p>Natural language or CLI input with auto-routing. Prefix <code>!</code> for CLI, <code>?</code> for NLI.</p>
           </div>
           <div class="card">
+            <h3>Shell Command Execution</h3>
+            <p>Run CLI tools (<code>aws</code>, <code>curl</code>, <code>openssl</code>) directly via the agent with approval gates and audit logging.</p>
+          </div>
+          <div class="card">
             <h3>Report Forge</h3>
             <p>Generate findings reports in HTML, PDF, JSON, or Markdown with evidence and remediation steps.</p>
+          </div>
+          <div class="card">
+            <h3>Doctor</h3>
+            <p>Pre-flight health check: Python version, external tools, privileges, wordlists, API keys, and project status.</p>
           </div>
         </div>
       </section>
@@ -121,7 +129,7 @@ clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose</code></pre>
               <tr><td><code>--verbose, -v</code></td><td>Show per-step progress</td></tr>
               </tbody>
             </table>
-            <p class="note">Excluded tools: <code>credential_test</code>, <code>run_custom_script</code></p>
+            <p class="note">Excluded tools: <code>credential_test</code>, <code>run_custom_script</code>, <code>run_command</code></p>
           </div>
         </div>
       </section>
@@ -146,6 +154,7 @@ clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose</code></pre>
             <tr><td><code>config</code></td><td>Show/edit config</td><td><code>clawpwn config show</code></td></tr>
             <tr><td><code>objective</code></td><td>Set/show/clear objective</td><td><code>clawpwn objective set "..."</code></td></tr>
             <tr><td><code>memory</code></td><td>Show/clear project memory</td><td><code>clawpwn memory show</code></td></tr>
+            <tr><td><code>doctor</code></td><td>Pre-flight health check</td><td><code>clawpwn doctor</code></td></tr>
             <tr><td><code>console</code></td><td>Interactive console</td><td><code>clawpwn console</code></td></tr>
           </tbody>
         </table>
@@ -157,6 +166,9 @@ clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose</code></pre>
         <div class="code-block">
           <pre><code># Install
 ./install.sh
+
+# Check setup
+clawpwn doctor
 
 # Create project
 mkdir -p ~/pentest/target &amp;&amp; cd ~/pentest/target
@@ -219,6 +231,10 @@ clawpwn console</code></pre>
           <div class="card">
             <h3>Credentials</h3>
             <p>Built-in form tester &middot; <code>hydra</code> backend</p>
+          </div>
+          <div class="card">
+            <h3>Agent Tools</h3>
+            <p><code>fetch_url</code> (raw content extraction) &middot; <code>run_command</code> (shell: <code>aws</code>, <code>curl</code>, etc.)</p>
           </div>
         </div>
       </section>
