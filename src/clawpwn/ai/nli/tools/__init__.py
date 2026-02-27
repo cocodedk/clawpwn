@@ -15,6 +15,7 @@ from .support_tools import (
     SHOW_HELP_TOOL,
     SUGGEST_TOOLS_TOOL,
 )
+from .writeup_tools import GENERATE_WRITEUP_TOOL
 
 __all__ = [
     "CHECK_AVAILABLE_TOOLS_TOOL",
@@ -23,6 +24,7 @@ __all__ = [
     "DISCOVER_HOSTS_TOOL",
     "FAST_PATH_TOOLS",
     "FETCH_URL_TOOL",
+    "GENERATE_WRITEUP_TOOL",
     "FINGERPRINT_TARGET_TOOL",
     "LIST_RECENT_ARTIFACTS_TOOL",
     "NETWORK_SCAN_TOOL",
@@ -61,6 +63,7 @@ def get_all_tools() -> list[dict[str, Any]]:
         RUN_COMMAND_TOOL,
         SAVE_PLAN_TOOL,
         UPDATE_PLAN_STEP_TOOL,
+        GENERATE_WRITEUP_TOOL,
     ]
 
 

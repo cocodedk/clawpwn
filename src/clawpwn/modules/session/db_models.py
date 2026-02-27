@@ -8,6 +8,7 @@ from clawpwn.db.models import (
     Project,
     ProjectMemory,
     ProjectState,
+    Writeup,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "Project",
     "ProjectMemory",
     "ProjectState",
+    "Writeup",
 ]

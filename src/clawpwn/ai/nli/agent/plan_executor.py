@@ -36,10 +36,7 @@ def run_plan_executor(
     """Execute a scan/attack request via code-driven plan execution."""
     progress_updates: list[str] = []
     is_streamed = on_progress is not None
-
-    def _emit(message: str) -> None:
-        if on_progress is not None:
-            on_progress(message)
+    _emit = (lambda m: on_progress(m)) if on_progress else (lambda m: None)
 
     # --- Phase 1: Get or create plan ---
     session, target = get_session_and_target(project_dir)
@@ -114,7 +111,6 @@ def run_plan_executor(
         if not pending:
             _emit(f"  All {tier_label} steps already complete, skipping")
             continue
-
         executable = [s for s in pending if not is_llm_dependent_step(s["tool"])]
         llm_dependent = [s for s in pending if is_llm_dependent_step(s["tool"])]
 
@@ -128,7 +124,6 @@ def run_plan_executor(
             progress_updates,
         )
         all_results.extend(tier_results)
-
         for step in llm_dependent:
             result = execute_single_step(
                 step,
@@ -141,9 +136,7 @@ def run_plan_executor(
             )
             all_results.append(result)
             tier_results.append(result)
-
         enrich_context(context, tier_results)
-
         # Early-exit: skip deeper tiers when nothing was found
         if tier_found_nothing(tier_results):
             completed_tools = {r["tool"].split(":")[0] for r in all_results}
@@ -153,7 +146,6 @@ def run_plan_executor(
                 _emit(msg)
                 progress_updates.append(msg)
                 break
-
         if needs_revision(tier_results):
             _emit("Plan revision needed based on results...")
             progress_updates.append("Revising plan")
@@ -181,6 +173,21 @@ def run_plan_executor(
     progress_updates.append("Generating summary")
     summary = summarize_results(llm, system_prompt, all_results, target)
     _emit(summary)
+
+    # --- Phase 4: Generate writeup ---
+    try:
+        from .writeup_io import save_writeup as _save_writeup
+        from .writeup_llm import generate_writeup
+
+        _emit("\nGenerating task writeup...")
+        path = _save_writeup(
+            session, generate_writeup(llm, target, all_results, project_dir), target, project_dir
+        )
+        _emit(msg := f"Writeup saved to {path}")
+        progress_updates.append(msg)
+    except Exception:
+        _emit("Writeup generation skipped (non-critical error).")
+
     return build_result(
         success=True,
         text=summary,
