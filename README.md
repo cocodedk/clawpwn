@@ -18,7 +18,8 @@ ClawPwn helps you run structured, auditable security assessments by combining:
 - CLI commands for recon, scanning, reporting, and project management
 - Interactive console with `CLI`, `NLI`, and `AUTO` input routing
 - AI tool-use workflow (Anthropic path) with methodology guidance:
-  fingerprint -> research -> scan -> credential test -> escalate
+  fingerprint -> fetch/research -> scan -> credential test -> escalate
+- Shell command execution (`run_command`) for CLI tools like `aws`, `curl`, `openssl`
 - Modular web scanner orchestration with plugin-based external tool support
 - Per-project SQLite storage for operational state
 - Automated provisioning of a centralized Postgres experience database
@@ -86,6 +87,7 @@ Use `clawpwn --help` for full command help.
 | `memory` | Show/clear project memory | `clawpwn memory show --limit 8` |
 | `version` | Print installed version | `clawpwn version` |
 | `autopilot` | Autonomous recon and vuln detection | `clawpwn autopilot http://10.0.0.5 --cycles 3` |
+| `doctor` | Pre-flight health check | `clawpwn doctor` |
 | `console` | Start interactive console | `clawpwn console` |
 
 ## Autopilot Mode
@@ -111,7 +113,7 @@ clawpwn autopilot http://10.0.0.5 -c 5 -d 4.0 --verbose
 
 Each cycle generates a recon plan, executes it (fingerprint, research, web/network scanning, directory enumeration), and summarizes results. Between cycles a cheap LLM call evaluates whether new attack surfaces were discovered. The loop stops when coverage is thorough, the cycle limit is reached, or the duration limit expires.
 
-Excluded tools (active exploitation): `credential_test`, `run_custom_script`.
+Excluded tools (active exploitation): `credential_test`, `run_custom_script`, `run_command`.
 
 ## Interactive Console
 
@@ -143,11 +145,22 @@ Credential testing backends:
 
 - `credential_test` uses built-in form testing by default and supports `tool=hydra` when installed.
 
+NLI agent tools:
+
+- `fetch_url` fetches raw page content (HTML, JSON, text) for data extraction (ARNs, tokens, JS parsing)
+- `run_command` executes shell commands (`aws`, `curl`, `openssl`, etc.) with user approval gate
+
 CLI `scan --web-tools` currently accepts:
 
 - `builtin,nuclei,feroxbuster,ffuf,nikto,searchsploit,zap` or `all`
 
 NLI/agent tool-use can select specialized plugins (`sqlmap`, `wpscan`, `testssl`) when available.
+
+External CLI tools registered for availability checking:
+
+- `nmap`, `naabu`, `nuclei`, `nikto`, `sqlmap`, `hydra`, `feroxbuster`, `ffuf`, `wpscan`, `testssl`, `zap`, `rustscan`, `masscan`, `searchsploit`, `aws`
+
+Run `clawpwn doctor` to check which tools are installed and get install instructions for missing ones.
 
 ## Configuration
 
