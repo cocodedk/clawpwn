@@ -87,6 +87,38 @@ TOOL_EXECUTORS: dict[str, Any] = {
 }
 
 
+# Tools that require real user confirmation before execution.
+_APPROVAL_REQUIRED_TOOLS = {"run_command", "run_custom_script"}
+
+
+def _prompt_user_approval(name: str, params: dict[str, Any]) -> bool:
+    """Prompt the user for real approval of a dangerous tool call.
+
+    Returns True only if the user explicitly approves.
+    """
+    if name == "run_command":
+        label = "shell command"
+        detail = params.get("command", "(empty)")
+    else:
+        label = "custom script"
+        detail = params.get("script", "(empty)")
+
+    desc = params.get("description", "")
+    print(f"\n[!] AI wants to run a {label}:")
+    if desc:
+        print(f"    Description: {desc}")
+    # Show first 500 chars to avoid flooding the terminal
+    preview = detail if len(detail) <= 500 else detail[:500] + "\n    ... (truncated)"
+    print(f"    {preview}")
+
+    try:
+        response = input("\nApprove? (yes/no): ").lower().strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\n[!] Not approved.")
+        return False
+    return response in ("yes", "y")
+
+
 def dispatch_tool(name: str, params: dict[str, Any], project_dir: Path) -> str:
     """Run the named tool and return a result string.
 
@@ -101,6 +133,14 @@ def dispatch_tool(name: str, params: dict[str, Any], project_dir: Path) -> str:
     import time
 
     from clawpwn.utils.debug import debug_tool_execution, is_debug_enabled
+
+    # Gate dangerous tools behind real user confirmation.
+    # The LLM's user_approved flag is ignored — only interactive consent counts.
+    if name in _APPROVAL_REQUIRED_TOOLS:
+        if _prompt_user_approval(name, params):
+            params = {**params, "user_approved": True}
+        else:
+            return f"User declined to run this {name.replace('_', ' ')}."
 
     # Log tool start if debug enabled
     if is_debug_enabled():
