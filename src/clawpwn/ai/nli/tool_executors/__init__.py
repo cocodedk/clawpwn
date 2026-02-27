@@ -34,6 +34,7 @@ from .support_executors import (
     execute_set_target,
     execute_show_help,
 )
+from .writeup_executor import execute_generate_writeup
 
 __all__ = [
     "EXTERNAL_TOOLS",
@@ -56,6 +57,7 @@ __all__ = [
     "execute_show_help",
     "execute_suggest_tools",
     "execute_update_plan_step",
+    "execute_generate_writeup",
     "execute_web_scan",
     "execute_web_search",
     "format_availability_report",
@@ -84,6 +86,7 @@ TOOL_EXECUTORS: dict[str, Any] = {
     "run_command": execute_run_command,
     "save_plan": execute_save_plan,
     "update_plan_step": execute_update_plan_step,
+    "generate_writeup": execute_generate_writeup,
 }
 
 

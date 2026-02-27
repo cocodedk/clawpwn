@@ -12,9 +12,12 @@ from .memory_mixin import MemoryMixin
 from .plan_mixin import PlanMixin
 from .project_mixin import ProjectMixin
 from .state_mixin import StateMixin
+from .writeup_mixin import WriteupMixin
 
 
-class SessionManager(ProjectMixin, MemoryMixin, FindingLogMixin, StateMixin, PlanMixin):
+class SessionManager(
+    ProjectMixin, MemoryMixin, FindingLogMixin, StateMixin, PlanMixin, WriteupMixin
+):
     """Manages project sessions and state."""
 
     def __init__(self, db_path: Path):

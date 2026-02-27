@@ -42,6 +42,7 @@ class Project(Base):
         "ConversationMessage", back_populates="project", cascade="all, delete-orphan"
     )
     plan_steps = relationship("PlanStep", back_populates="project", cascade="all, delete-orphan")
+    writeups = relationship("Writeup", back_populates="project", cascade="all, delete-orphan")
 
 
 class Finding(Base):
@@ -134,6 +135,23 @@ class PlanStep(Base):
     updated_at = Column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
 
     project = relationship("Project", back_populates="plan_steps")
+
+
+class Writeup(Base):
+    """LLM-synthesized task writeup (narrative account of a scan/attack)."""
+
+    __tablename__ = "writeups"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    format = Column(String, default="markdown")
+
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+
+    project = relationship("Project", back_populates="writeups")
 
 
 class ProjectState:

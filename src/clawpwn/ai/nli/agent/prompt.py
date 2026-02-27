@@ -185,4 +185,5 @@ TOOL_ACTION_MAP: dict[str, str] = {
     "save_plan": "plan",
     "update_plan_step": "plan",
     "autopilot": "autopilot",
+    "generate_writeup": "writeup",
 }
