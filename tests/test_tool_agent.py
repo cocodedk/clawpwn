@@ -6,6 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 from clawpwn.ai.nli.agent import ToolUseAgent
 from clawpwn.ai.nli.tool_executors import (
     EXTERNAL_TOOLS,
@@ -63,6 +65,7 @@ class TestToolDefinitions:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("mock_env_vars")
 class TestToolExecutors:
     """Test individual tool executor functions."""
 
@@ -70,26 +73,24 @@ class TestToolExecutors:
         for tool in get_all_tools():
             assert tool["name"] in TOOL_EXECUTORS, f"No executor for {tool['name']}"
 
-    def test_dispatch_unknown_tool(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_dispatch_unknown_tool(self, project_dir: Path) -> None:
         result = dispatch_tool("nonexistent", {}, project_dir)
         assert "Unknown tool" in result
 
-    def test_dispatch_tool_catches_exceptions(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_dispatch_tool_catches_exceptions(self, project_dir: Path) -> None:
         with patch.dict(
             TOOL_EXECUTORS, {"broken": Mock(side_effect=RuntimeError("boom"))}, clear=False
         ):
             result = dispatch_tool("broken", {}, project_dir)
             assert "failed" in result.lower()
 
-    def test_execute_check_available_tools(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_execute_check_available_tools(self, project_dir: Path) -> None:
         result = execute_check_available_tools({}, project_dir)
         assert isinstance(result, str)
         # Should mention at least some tools
         assert "nstalled" in result or "No external" in result
 
-    def test_execute_suggest_tools_formats_output(
-        self, project_dir: Path, mock_env_vars: None
-    ) -> None:
+    def test_execute_suggest_tools_formats_output(self, project_dir: Path) -> None:
         params = {
             "suggestions": [
                 {
@@ -104,34 +105,31 @@ class TestToolExecutors:
         assert "sqlmap" in result
         assert "sudo apt install sqlmap" in result
 
-    def test_execute_suggest_tools_empty(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_execute_suggest_tools_empty(self, project_dir: Path) -> None:
         result = execute_suggest_tools({"suggestions": []}, project_dir)
         assert "No tool suggestions" in result
 
-    def test_execute_check_status_no_db(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_execute_check_status_no_db(self, project_dir: Path) -> None:
         # project_dir has .clawpwn but no initialised DB
         result = dispatch_tool("check_status", {}, project_dir)
         assert "not found" in result.lower() or "no project" in result.lower()
 
-    def test_execute_set_target(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
-    ) -> None:
+    @pytest.mark.usefixtures("initialized_db")
+    def test_execute_set_target(self, project_dir: Path, session_manager) -> None:
         session_manager.create_project(str(project_dir))
         result = dispatch_tool("set_target", {"target": "http://example.com"}, project_dir)
         assert "http://example.com" in result
 
-    def test_execute_show_help_valid_topic(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_execute_show_help_valid_topic(self, project_dir: Path) -> None:
         result = dispatch_tool("show_help", {"topic": "scan"}, project_dir)
         assert isinstance(result, str)
         assert len(result) > 10
 
-    def test_execute_show_help_invalid_topic(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_execute_show_help_invalid_topic(self, project_dir: Path) -> None:
         result = dispatch_tool("show_help", {"topic": "nonexistent"}, project_dir)
         assert "Unknown topic" in result
 
-    def test_execute_list_recent_artifacts_scripts(
-        self, project_dir: Path, mock_env_vars: None
-    ) -> None:
+    def test_execute_list_recent_artifacts_scripts(self, project_dir: Path) -> None:
         script_path = project_dir / "exploits" / "custom_script_20260208_083343.py"
         script_path.write_text('print("ok")', encoding="utf-8")
 
@@ -141,8 +139,9 @@ class TestToolExecutors:
         assert "Recent artifacts" in result
         assert "custom_script_20260208_083343.py" in result
 
+    @pytest.mark.usefixtures("initialized_db")
     def test_check_status_includes_latest_script_artifact(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+        self, project_dir: Path, session_manager
     ) -> None:
         session_manager.create_project(str(project_dir))
         script_path = project_dir / "exploits" / "custom_script_20260208_083343.py"
@@ -152,8 +151,9 @@ class TestToolExecutors:
         assert "Latest script artifact:" in result
         assert str(script_path) in result
 
+    @pytest.mark.usefixtures("initialized_db")
     def test_check_status_includes_discovered_ports(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+        self, project_dir: Path, session_manager
     ) -> None:
         import json
 
@@ -177,8 +177,9 @@ class TestToolExecutors:
         assert "80" in result
         assert "443" in result
 
+    @pytest.mark.usefixtures("initialized_db")
     def test_check_status_no_ports_when_only_web_scans(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+        self, project_dir: Path, session_manager
     ) -> None:
         """Only web_scan logs exist — no 'Discovered ports' line."""
         import json
@@ -199,16 +200,16 @@ class TestToolExecutors:
         result = dispatch_tool("check_status", {}, project_dir)
         assert "Discovered ports" not in result
 
-    def test_check_status_no_ports_when_no_logs(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
-    ) -> None:
+    @pytest.mark.usefixtures("initialized_db")
+    def test_check_status_no_ports_when_no_logs(self, project_dir: Path, session_manager) -> None:
         """No scan logs at all — no 'Discovered ports' line."""
         session_manager.create_project(str(project_dir))
         result = dispatch_tool("check_status", {}, project_dir)
         assert "Discovered ports" not in result
 
+    @pytest.mark.usefixtures("initialized_db")
     def test_check_status_survives_malformed_log_details(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+        self, project_dir: Path, session_manager
     ) -> None:
         """Malformed JSON in log details doesn't crash check_status."""
         session_manager.create_project(str(project_dir))
@@ -222,8 +223,9 @@ class TestToolExecutors:
         assert "Target:" in result
         assert "Discovered ports" not in result
 
+    @pytest.mark.usefixtures("initialized_db")
     def test_check_status_deduplicates_ports_across_scans(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+        self, project_dir: Path, session_manager
     ) -> None:
         """Ports from multiple scans are deduplicated."""
         import json
@@ -249,9 +251,8 @@ class TestToolExecutors:
         ports_line = [line for line in result.split("\n") if "Discovered ports" in line][0]
         assert ports_line.count("80") == 1
 
-    def test_check_status_empty_open_ports_list(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
-    ) -> None:
+    @pytest.mark.usefixtures("initialized_db")
+    def test_check_status_empty_open_ports_list(self, project_dir: Path, session_manager) -> None:
         """Network scan with open_ports: [] — no 'Discovered ports' line."""
         import json
 
@@ -272,8 +273,9 @@ class TestToolExecutors:
         result = dispatch_tool("check_status", {}, project_dir)
         assert "Discovered ports" not in result
 
+    @pytest.mark.usefixtures("initialized_db")
     def test_check_status_survives_non_dict_json_payload(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+        self, project_dir: Path, session_manager
     ) -> None:
         """JSON that parses to a list (not dict) doesn't crash."""
         import json
@@ -289,8 +291,9 @@ class TestToolExecutors:
         assert "Target:" in result
         assert "Discovered ports" not in result
 
+    @pytest.mark.usefixtures("initialized_db")
     def test_check_status_survives_non_list_open_ports(
-        self, project_dir: Path, mock_env_vars: None, initialized_db: Path, session_manager
+        self, project_dir: Path, session_manager
     ) -> None:
         """open_ports as a string instead of list doesn't crash."""
         import json
@@ -365,6 +368,7 @@ def _make_response(content: list, stop_reason: str = "end_turn"):
     return SimpleNamespace(content=content, stop_reason=stop_reason)
 
 
+@pytest.mark.usefixtures("mock_env_vars")
 class TestToolUseAgent:
     """Test the ToolUseAgent loop with mocked LLM."""
 
@@ -373,7 +377,7 @@ class TestToolUseAgent:
         llm.provider = "anthropic"
         return ToolUseAgent(llm, project_dir)
 
-    def test_direct_text_response(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_direct_text_response(self, project_dir: Path) -> None:
         """Claude responds with text only — no tool call."""
         agent = self._make_agent(project_dir)
         agent.llm.chat_with_tools = Mock(return_value=_make_response([_make_text_block("Hello!")]))
@@ -381,7 +385,7 @@ class TestToolUseAgent:
         assert result["success"] is True
         assert "Hello!" in result["response"]
 
-    def test_single_tool_call_fast_path(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_single_tool_call_fast_path(self, project_dir: Path) -> None:
         """Simple fast-path tool (show_help) skips analysis round-trip."""
         agent = self._make_agent(project_dir)
 
@@ -403,7 +407,7 @@ class TestToolUseAgent:
         # Should NOT have been called a second time (fast path)
         assert agent.llm.chat_with_tools.call_count == 1
 
-    def test_tool_call_with_analysis(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_tool_call_with_analysis(self, project_dir: Path) -> None:
         """Non-fast-path tool (web_scan) gets an analysis round-trip."""
         agent = self._make_agent(project_dir)
 
@@ -429,9 +433,7 @@ class TestToolUseAgent:
         assert "2 SQL injection" in result["response"]
         assert agent.llm.chat_with_tools.call_count == 2
 
-    def test_tool_call_executes_when_stop_reason_is_max_tokens(
-        self, project_dir: Path, mock_env_vars: None
-    ) -> None:
+    def test_tool_call_executes_when_stop_reason_is_max_tokens(self, project_dir: Path) -> None:
         """Tool calls must execute even if provider reports stop_reason=max_tokens."""
         agent = self._make_agent(project_dir)
 
@@ -456,7 +458,7 @@ class TestToolUseAgent:
         assert agent.llm.chat_with_tools.call_count == 2
         mock_dispatch.assert_called_once()
 
-    def test_suggest_tools_captured(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_suggest_tools_captured(self, project_dir: Path) -> None:
         """suggest_tools tool call populates the suggestions field."""
         agent = self._make_agent(project_dir)
 
@@ -483,7 +485,7 @@ class TestToolUseAgent:
         assert len(result.get("suggestions", [])) == 1
         assert result["suggestions"][0]["name"] == "sqlmap"
 
-    def test_max_rounds_limit(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_max_rounds_limit(self, project_dir: Path) -> None:
         """Agent stops after MAX_TOOL_ROUNDS to prevent runaway loops."""
         agent = self._make_agent(project_dir)
 
@@ -506,9 +508,7 @@ class TestToolUseAgent:
 
         assert agent.llm.chat_with_tools.call_count == MAX_TOOL_ROUNDS
 
-    def test_system_prompt_includes_tool_status(
-        self, project_dir: Path, mock_env_vars: None
-    ) -> None:
+    def test_system_prompt_includes_tool_status(self, project_dir: Path) -> None:
         agent = self._make_agent(project_dir)
         assert "External tool status:" in agent._system_prompt
 
@@ -518,10 +518,11 @@ class TestToolUseAgent:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("mock_env_vars")
 class TestNLIProviderRouting:
     """Verify NLI delegates to agent vs text-parse based on provider."""
 
-    def test_openai_uses_text_parse(self, project_dir: Path, mock_env_vars: None) -> None:
+    def test_openai_uses_text_parse(self, project_dir: Path) -> None:
         from clawpwn.ai.nli import NaturalLanguageInterface
 
         nli = NaturalLanguageInterface(project_dir)
@@ -530,9 +531,7 @@ class TestNLIProviderRouting:
         finally:
             nli.close()
 
-    def test_anthropic_uses_tool_agent(
-        self, project_dir: Path, mock_env_vars: None, monkeypatch
-    ) -> None:
+    def test_anthropic_uses_tool_agent(self, project_dir: Path, monkeypatch) -> None:
         from clawpwn.ai.nli import NaturalLanguageInterface
 
         monkeypatch.setenv("CLAWPWN_LLM_PROVIDER", "anthropic")
@@ -542,9 +541,7 @@ class TestNLIProviderRouting:
         finally:
             nli.close()
 
-    def test_force_legacy_disables_agent(
-        self, project_dir: Path, mock_env_vars: None, monkeypatch
-    ) -> None:
+    def test_force_legacy_disables_agent(self, project_dir: Path, monkeypatch) -> None:
         from clawpwn.ai.nli import NaturalLanguageInterface
 
         monkeypatch.setenv("CLAWPWN_LLM_PROVIDER", "anthropic")

@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 
 def _make_tool_use_block(name: str, tool_input: dict, tool_id: str = "toolu_1"):
     return SimpleNamespace(type="tool_use", name=name, input=tool_input, id=tool_id)
@@ -32,14 +34,13 @@ _SAVE_PLAN_TOOL = {
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("mock_env_vars", "initialized_db")
 class TestRunPlanExecutor:
     """End-to-end plan executor tests with mocked LLM and dispatch."""
 
     def test_full_flow_generates_and_executes_plan(
         self,
         project_dir: Path,
-        mock_env_vars: None,
-        initialized_db: Path,
         session_manager,
     ) -> None:
         from clawpwn.ai.nli.agent.plan_executor import run_plan_executor
@@ -84,8 +85,6 @@ class TestRunPlanExecutor:
     def test_no_target_returns_error(
         self,
         project_dir: Path,
-        mock_env_vars: None,
-        initialized_db: Path,
         session_manager,
     ) -> None:
         from clawpwn.ai.nli.agent.plan_executor import run_plan_executor
@@ -108,8 +107,6 @@ class TestRunPlanExecutor:
     def test_fallback_to_agent_loop_when_no_plan_generated(
         self,
         project_dir: Path,
-        mock_env_vars: None,
-        initialized_db: Path,
         session_manager,
     ) -> None:
         from clawpwn.ai.nli.agent.plan_executor import run_plan_executor
@@ -148,14 +145,13 @@ class TestRunPlanExecutor:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("mock_env_vars", "initialized_db")
 class TestResumeFromPending:
     """Test plan resumption when pending steps exist."""
 
     def test_resumes_existing_plan(
         self,
         project_dir: Path,
-        mock_env_vars: None,
-        initialized_db: Path,
         session_manager,
     ) -> None:
         from clawpwn.ai.nli.agent.plan_executor import run_plan_executor
@@ -194,8 +190,6 @@ class TestResumeFromPending:
     def test_replace_plan_clears_stale_plan(
         self,
         project_dir: Path,
-        mock_env_vars: None,
-        initialized_db: Path,
         session_manager,
     ) -> None:
         """replace_plan=True should replace a pending broad plan."""
@@ -254,13 +248,13 @@ class TestResumeFromPending:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("mock_env_vars")
 class TestAgentRouting:
     """Test that ToolUseAgent.run routes to the right executor."""
 
     def test_conversational_routes_to_agent_loop(
         self,
         project_dir: Path,
-        mock_env_vars: None,
     ) -> None:
         from clawpwn.ai.nli.agent import ToolUseAgent
 
@@ -286,7 +280,6 @@ class TestAgentRouting:
     def test_plan_execute_routes_to_plan_executor(
         self,
         project_dir: Path,
-        mock_env_vars: None,
     ) -> None:
         from clawpwn.ai.nli.agent import ToolUseAgent
 
@@ -315,14 +308,13 @@ class TestAgentRouting:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("mock_env_vars", "initialized_db")
 class TestFocusedPromptWiring:
     """Test that run_plan_executor passes focused prompt for specific requests."""
 
     def test_focused_request_uses_focused_prompt(
         self,
         project_dir: Path,
-        mock_env_vars: None,
-        initialized_db: Path,
         session_manager,
     ) -> None:
         from clawpwn.ai.nli.agent.plan_executor import run_plan_executor
@@ -375,14 +367,13 @@ class TestFocusedPromptWiring:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("mock_env_vars", "initialized_db")
 class TestResultQueryRouting:
     """Prove that result-query messages route to agent loop with port context."""
 
     def test_list_ports_routes_to_agent_loop_not_plan(
         self,
         project_dir: Path,
-        mock_env_vars: None,
-        initialized_db: Path,
         session_manager,
     ) -> None:
         """'list all detected ports' → classify_intent returns conversational
@@ -413,14 +404,20 @@ class TestResultQueryRouting:
         llm.chat.return_value = "conversational"
         agent = ToolUseAgent(llm, project_dir)
 
-        with patch(
-            "clawpwn.ai.nli.agent.loop.run_agent_loop",
-            return_value={"success": True, "response": "Ports: 22, 80, 443, 3306"},
-        ) as mock_loop:
+        with (
+            patch(
+                "clawpwn.ai.nli.agent.loop.run_agent_loop",
+                return_value={"success": True, "response": "Ports: 22, 80, 443, 3306"},
+            ) as mock_loop,
+            patch(
+                "clawpwn.ai.nli.agent.plan_executor.run_plan_executor",
+            ) as mock_plan,
+        ):
             result = agent.run("list all the detected ports")
 
         # Agent loop was called, NOT the plan executor
         mock_loop.assert_called_once()
+        mock_plan.assert_not_called()
         assert result["success"] is True
 
         # The system prompt passed to the agent loop contains port data
@@ -434,7 +431,6 @@ class TestResultQueryRouting:
     def test_scan_request_still_routes_to_plan_executor(
         self,
         project_dir: Path,
-        mock_env_vars: None,
     ) -> None:
         """'scan ports 1-1000' must still route to plan executor, not conversational."""
         from clawpwn.ai.nli.agent import ToolUseAgent
